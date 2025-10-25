@@ -46,8 +46,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: msg.isUser
-                          ? Colors.blue[100]
-                          : Colors.grey[300],
+                          ? Color.fromARGB(200,1,84,152)
+                          : Color.fromARGB(200,0,110,17),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(msg.text),

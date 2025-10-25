@@ -3,8 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:ecommunity/ai_assistant.dart';
 import 'package:ecommunity/about.dart';
 import 'package:ecommunity/signup.dart';
+import 'dart:io';
+
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback =
+          (X509Certificate cert, String host, int port) => true;
+  }
+}
 
 void main() {
+  HttpOverrides.global = MyHttpOverrides();
   runApp(const App());
 }
 
@@ -39,6 +50,12 @@ class _AppState extends State<App> {
     });
   }
 
+  // --- Assuming AppColors provides these colors, using placeholders if not defined ---
+  final Color primaryColor = Colors.green;
+  final Color secondaryColor = Colors.teal;
+  final Color lightBackgroundColor = const Color(0xFFF0F0F0);
+  final Color darkBackgroundColor = const Color(0xFF121212);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -48,9 +65,9 @@ class _AppState extends State<App> {
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.green,
           brightness: Brightness.light,
-          primary: AppColors.primary,
-          surface: AppColors.lightBackground,
-          secondary: AppColors.secondary,
+          primary: primaryColor, // AppColors.primary
+          surface: lightBackgroundColor, // AppColors.lightBackground
+          secondary: secondaryColor, // AppColors.secondary
         ),
       ),
       darkTheme: ThemeData(
@@ -58,102 +75,173 @@ class _AppState extends State<App> {
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.green,
           brightness: Brightness.dark,
-          primary: AppColors.primary,
-          surface: AppColors.background,
-          secondary: AppColors.secondary,
+          primary: primaryColor, // AppColors.primary
+          surface: darkBackgroundColor, // AppColors.background
+          secondary: secondaryColor, // AppColors.secondary
         ),
       ),
       themeMode: _theme,
-      home: HomePage(title: 'Ecommunity', changeTheme: changeTheme),
+      home: MainScreenWrapper(title: 'Ecommunity', changeTheme: changeTheme),
     );
   }
 }
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key, required this.title, required this.changeTheme});
+// Renamed HomePage to MainScreenWrapper to better reflect its function
+class MainScreenWrapper extends StatefulWidget {
+  const MainScreenWrapper({super.key, required this.title, required this.changeTheme});
 
   final String title;
   final VoidCallback changeTheme;
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<MainScreenWrapper> createState() => _MainScreenWrapperState();
 }
 
-class _HomePageState extends State<HomePage> {
-  // Dummy data for the posts
+class _MainScreenWrapperState extends State<MainScreenWrapper> {
+  // 1. State variable to track the current selected index
+  int _selectedIndex = 0;
+
+  // Dummy data for the posts (kept here as it's the main screen's content)
   final List<Post> posts = [
     Post(
-      username: 'FlutterDev',
+      username: 'ecofriendly',
       userAvatarUrl: 'https://i.pravatar.cc/150?img=1',
-      postImageUrl: 'https://picsum.photos/600/400?image=10',
-      caption: 'Loving the new features in Flutter 3!',
+      postImageUrl:
+      'https://media.istockphoto.com/id/1659684092/pt/foto/a-view-up-into-the-trees-direction-sky.jpg?s=1024x1024&w=is&k=20&c=w_bm_55yc8QGZwvdAHvr7ByWnihRyPDKGaT8OUMXl3w=',
+      caption:
+      '“Just swapped out all my plastic bags for reusable cotton ones! Small steps make a big impact 🌍♻️ #PlasticFree #Sustainability”',
     ),
     Post(
       username: 'eco',
       userAvatarUrl: 'https://i.pravatar.cc/150?img=2',
-      postImageUrl: 'https://picsum.photos/600/400?image=20',
-      caption: 'Dart is such a powerful and versatile language.',
+      postImageUrl:
+      'https://cdn.pixabay.com/photo/2023/02/14/04/39/volunteer-7788809_1280.jpg',
+      caption:
+      'Did you know glass can be recycled endlessly without losing quality? Make sure to clean your jars before recycling!',
     ),
     Post(
       username: 'proRecycler',
-      userAvatarUrl: 'https://images.pexels.com/photos/1053845/pexels-photo-1053845.jpeg',
-      postImageUrl: 'https://picsum.photos/600/400?image=30',
-      caption: 'Just starting my journey with Flutter. Any tips?',
+      userAvatarUrl:
+      'https://images.pexels.com/photos/1053845/pexels-photo-1053845.jpeg',
+      postImageUrl:
+      'https://media.istockphoto.com/id/1342229204/pt/foto/a-lake-in-the-shape-of-a-recycling-sign-in-the-middle-of-untouched-nature-an-ecological.jpg?s=1024x1024&w=is&k=20&c=Q-Cvz4PFNrktJnUxFVNeBIh-LkapsjjYBfYGXvZc-RU=',
+      caption:
+      'Upcycled my old t-shirts into reusable shopping bags! Who else loves DIY projects?',
     ),
   ];
+
+  // List of screens to navigate between
+  late final List<Widget> _widgetOptions;
+
+  @override
+  void initState() {
+    super.initState();
+    _widgetOptions = <Widget>[
+      // 0: Home Feed
+      HomePageContent(posts: posts), // Main Feed
+      // 1: Marketplace (Dummy)
+      const Center(child: Text('🛒 Marketplace Screen', style: TextStyle(fontSize: 24))),
+      // 2: AI Assistant
+      const AiAssistantScreen(),
+      // 3: Profile/Login
+      const LoginWidget(),
+      // 4: About
+      const AboutPage(),
+    ];
+  }
+
+  // 2. Method to update the selected index
+  void _onDestinationSelected(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  String _getAppBarTitle(int index) {
+    switch (index) {
+      case 0:
+        return widget.title; // 'Ecommunity'
+      case 1:
+        return 'Marketplace';
+      case 2:
+        return 'AI Assistant';
+      case 3:
+        return 'Profile/Sign Up';
+      case 4:
+        return 'About';
+      default:
+        return widget.title;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text(widget.title),
+        title: Text(_getAppBarTitle(_selectedIndex)),
         actions: [
           IconButton(
-            icon: Icon(Icons.brightness_6),
+            icon: const Icon(Icons.brightness_6),
             onPressed: widget.changeTheme,
           ),
         ],
       ),
-      body: ListView.builder(
-        itemCount: posts.length,
-        itemBuilder: (context, index) {
-          return PostCard(post: posts[index]);
-        },
+      // 3. Use IndexedStack to display the selected screen while preserving its state
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _widgetOptions,
       ),
-      bottomNavigationBar: BottomAppBar(
-        height: 50,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(icon: Icon(Icons.home), onPressed: null),
-            //estava sendo repetido 4 vezes abaixo por algum motivo, comentei por enquanto para caso cause problema
-            //IconButton(icon: Icon(Icons.home), onPressed: null),
-            //IconButton(icon: Icon(Icons.home), onPressed: null),
-            //IconButton(icon: Icon(Icons.home), onPressed: null),
-            IconButton(icon: Icon(Icons.store), onPressed: null), //esse é para o marketplace 
-            IconButton(
-              icon: Icon(Icons.assistant), 
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AiAssistantScreen()),
-                );
-              },
-            ),
-            //aqui a gente linka para o profile/sign-in(up)
-            IconButton(icon: Icon(Icons.person), onPressed: null),
-            //aqui a gente link para o about
-            IconButton(icon: Icon(Icons.info), 
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AboutPage()),
-              );
-            }),
-          ],
-        ),
+
+      // 4. Use the modern NavigationBar widget
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: _onDestinationSelected, // New M3 callback name
+        destinations: const <NavigationDestination>[
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.store_outlined),
+            selectedIcon: Icon(Icons.store),
+            label: 'Store',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.assistant_outlined),
+            selectedIcon: Icon(Icons.assistant),
+            label: 'AI',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outlined),
+            selectedIcon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.info_outline),
+            selectedIcon: Icon(Icons.info),
+            label: 'About',
+          ),
+        ],
       ),
+    );
+  }
+}
+
+// Extracted the ListView content into a separate widget for clarity
+class HomePageContent extends StatelessWidget {
+  final List<Post> posts;
+
+  const HomePageContent({super.key, required this.posts});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: posts.length,
+      itemBuilder: (context, index) {
+        return PostCard(post: posts[index]);
+      },
     );
   }
 }
