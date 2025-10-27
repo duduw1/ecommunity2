@@ -1,5 +1,6 @@
 import 'package:ecommunity/models/product_model.dart';
 import 'package:ecommunity/repositories/product_repository.dart';
+import 'package:ecommunity/screens/marketplace/edit_product_screen.dart';
 import 'package:flutter/material.dart';
 
 import 'add_product_Screen.dart';
@@ -13,40 +14,38 @@ class MarketplaceScreen extends StatefulWidget {
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
   final ProductRepository _repository = ProductRepository();
-
-  // MODIFICAÇÃO PRINCIPAL: Controlamos o estado manualmente.
-  bool _isLoading =
-      true; // Inicia como true para mostrar o spinner ao abrir a tela.
-  List<Product> _products = []; // A lista de produtos começa vazia.
+  bool _isLoading = true;
+  List<Product> _products = [];
+  List<Product> _filteredProducts = []; // Para a pesquisa
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Inicia a busca de dados assim que a tela é criada.
     _fetchProducts();
+    _searchController.addListener(_filterProducts);
   }
 
-  /// Busca os produtos do repositório e atualiza o estado da tela.
-  Future<void> _fetchProducts() async {
-    // Garante que o spinner seja exibido se a função for chamada novamente (ex: refresh).
-    if (!_isLoading) {
-      setState(() {
-        _isLoading = true;
-      });
-    }
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
+  Future<void> _fetchProducts() async {
+    if (!_isLoading) {
+      setState(() { _isLoading = true; });
+    }
     try {
       final fetchedProducts = await _repository.getAvailableProducts();
-      // Atualiza a lista de produtos e desativa o loading.
       setState(() {
         _products = fetchedProducts;
+        _filteredProducts = fetchedProducts;
         _isLoading = false;
       });
     } catch (e) {
-      // Em caso de erro, para o loading e mostra uma mensagem.
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() { _isLoading = false; });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar produtos: $e')),
@@ -55,37 +54,79 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     }
   }
 
+  void _filterProducts() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredProducts = _products.where((product) {
+        return product.title.toLowerCase().contains(query) ||
+               product.description.toLowerCase().contains(query);
+      }).toList();
+    });
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _isSearching = !_isSearching;
+      if (!_isSearching) {
+        _searchController.clear();
+      }
+    });
+  }
+
+  Future<void> _deleteProduct(Product product) async {
+    try {
+      await _repository.deleteProduct(product);
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${product.title}" foi excluído.')),
+        );
+      }
+      _fetchProducts(); // Atualiza a lista
+    } catch (e) {
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir produto: $e')),
+        );
+      }
+    }
+  }
+
+  void _showDeleteConfirmationDialog(Product product) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirmar Exclusão'),
+          content: Text('Tem certeza de que deseja excluir "${product.title}"?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Não'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: const Text('Sim, Excluir'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _deleteProduct(product);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Doações da Comunidade'),
-        actions: [
-          // O IconButton de refresh agora simplesmente chama _fetchProducts.
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _fetchProducts,
-            tooltip: 'Atualizar',
-          ),
-        ],
-      ),
-      // O corpo agora é construído com base no estado _isLoading.
+      appBar: _buildAppBar(),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
-        heroTag: 'marketplace_fab', // Um nome único para este botão
-
+        heroTag: 'marketplace_fab',
         onPressed: () {
-          // Navega para a tela de adicionar produto
-          Navigator.of(context)
-              .push(
-                MaterialPageRoute(
-                  builder: (context) => const AddProductScreen(),
-                ),
-              )
-              .then((_) {
-                // BÔNUS: Atualiza a lista após voltar da tela de adição.
-                _fetchProducts();
-              });
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const AddProductScreen()),
+          ).then((_) => _fetchProducts());
         },
         tooltip: 'Doar um produto',
         child: const Icon(Icons.add),
@@ -93,48 +134,71 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     );
   }
 
-  /// Método auxiliar para construir o corpo da tela com base no estado.
-  Widget _buildBody() {
-    // 1. Se estiver carregando, mostra o spinner.
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    // 2. Se a lista estiver vazia após o carregamento, mostra a mensagem.
-    if (_products.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _fetchProducts, // Permite "puxar para atualizar"
-        child: const Center(
-          child: SingleChildScrollView(
-            // Garante que a mensagem seja rolável em telas pequenas
-            physics: AlwaysScrollableScrollPhysics(),
-            child: Padding(
-              padding: EdgeInsets.all(20.0),
-              child: Text(
-                'Nenhum produto para doação no momento.\nSeja o primeiro!',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-            ),
-          ),
+  AppBar _buildAppBar() {
+    if (_isSearching) {
+      return AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _toggleSearch,
         ),
+        title: TextField(
+          controller: _searchController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Pesquisar por título ou descrição...',
+            border: InputBorder.none,
+            hintStyle: TextStyle(color: Colors.white70),
+          ),
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.clear),
+            onPressed: () => _searchController.clear(),
+          ),
+        ],
       );
     }
 
-    // 3. Se tivermos produtos, mostra a lista.
+    return AppBar(
+      title: const Text('Doações da Comunidade'),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.search),
+          onPressed: _toggleSearch,
+          tooltip: 'Pesquisar',
+        ),
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: _fetchProducts,
+          tooltip: 'Atualizar',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_products.isEmpty) {
+      return const Center(child: Text('Nenhum produto para doação no momento.'));
+    }
+    if (_filteredProducts.isEmpty && _isSearching) {
+      return const Center(child: Text('Nenhum produto encontrado.'));
+    }
     return RefreshIndicator(
-      onRefresh: _fetchProducts, // Adiciona o gesto de "puxar para atualizar"
+      onRefresh: _fetchProducts,
       child: ListView.builder(
         padding: const EdgeInsets.all(8.0),
-        itemCount: _products.length,
+        itemCount: _filteredProducts.length,
         itemBuilder: (context, index) {
-          return _buildProductCard(_products[index]);
+          return _buildProductCard(_filteredProducts[index]);
         },
       ),
     );
   }
 
-  /// Constrói o card para cada produto (sem alterações aqui).
   Widget _buildProductCard(Product product) {
     return Card(
       elevation: 4,
@@ -145,82 +209,52 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         children: [
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: Image.network(
-              product.imageUrl,
-              height: 200,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return const SizedBox(
-                  height: 200,
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
-                print("Image.network ERRO: $error");
-
-                return Container(
-                  height: 200,
-                  color: Colors.grey[200],
-                  child: const Icon(
-                    Icons.broken_image,
-                    color: Colors.grey,
-                    size: 50,
-                  ),
-                );
-              },
-            ),
+            child: Image.network(product.imageUrl, height: 200, width: double.infinity, fit: BoxFit.cover),
           ),
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  product.title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.person_pin_circle_outlined,
-                      color: Colors.grey,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        'Doador(a): ${product.donatorName} em ${product.location}',
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 14,
-                        ),
+                        product.title,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (context) => EditProductScreen(product: product)),
+                            ).then((_) => _fetchProducts());
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _showDeleteConfirmationDialog(product),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                Text('Doador(a): ${product.donatorName} em ${product.location}', style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Navegar para uma tela de detalhes do produto.
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Você demonstrou interesse em: ${product.title}',
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Você demonstrou interesse em: ${product.title}')),
+                    ),
                     child: const Text('Tenho Interesse'),
                   ),
                 ),

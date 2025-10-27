@@ -6,8 +6,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-// REMOVIDO: import 'dart:io'; (não é mais necessário para a imagem)
-
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
   @override
@@ -35,17 +33,60 @@ class _AddProductScreenState extends State<AddProductScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? selectedImage = await picker.pickImage(source: ImageSource.gallery);
-    if (selectedImage != null) {
-      final bytes = await selectedImage.readAsBytes();
-      setState(() {
-        _imageFile = selectedImage;
-        _imageBytes = bytes;
-      });
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext bc) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Tirar Foto'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Escolher da Galeria'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? selectedImage = await picker.pickImage(
+        source: source,
+        imageQuality: 80, // Comprime a imagem para 80% da qualidade original
+        maxWidth: 800,    // Redimensiona a largura máxima para 800px
+      );
+      if (selectedImage != null) {
+        final bytes = await selectedImage.readAsBytes();
+        setState(() {
+          _imageFile = selectedImage;
+          _imageBytes = bytes;
+        });
+      }
+    } catch (e) {
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao selecionar imagem: $e')),
+        );
+      }
     }
   }
+
 
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) {
@@ -119,7 +160,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               GestureDetector(
-                onTap: _pickImage,
+                onTap: _showImagePickerOptions,
                 child: Container(
                   height: 200,
                   decoration: BoxDecoration(
