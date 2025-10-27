@@ -45,4 +45,25 @@ class ProductRepository {
       throw Exception('Não foi possível atualizar o produto.');
     }
   }
+
+  // Em: lib/repositories/product_repository.dart
+// Dentro da classe ProductRepository
+
+  /// ATUALIZA um produto existente no Firestore.
+  Future<void> updateProduct(Product product) async {
+    try {
+      // 1. Acessa a coleção 'products'
+      final collection = _productsCollection; // CORREÇÃO: Usando a variável que já existe
+
+      // 2. Converte o objeto Product para um Map (usando o método toMap que já existe no seu modelo)
+      final productData = product.toMap();
+
+      // 3. Usa o método 'update' do Firestore para salvar os dados no documento com o ID correspondente.
+      await collection.doc(product.id).update(productData);
+    } catch (e) {
+      // 4. Em caso de erro, lança uma exceção para que a tela possa mostrá-la ao usuário.
+      print("Erro ao atualizar produto no Firestore: $e");
+      throw Exception('Não foi possível atualizar o produto. Tente novamente.');
+    }
+  }
 }

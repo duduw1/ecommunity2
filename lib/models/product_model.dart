@@ -1,7 +1,7 @@
+// lib/models/product_model.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
-// MODIFICADO: A classe agora se chama Product.
 class Product {
   final String id;
   final String title;
@@ -27,7 +27,6 @@ class Product {
     required this.status,
   });
 
-  /// MODIFICADO: O factory constructor agora é para Product.
   factory Product.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return Product(
@@ -56,5 +55,33 @@ class Product {
       'donatorName': donatorName,
       'status': status,
     };
+  }
+
+  // 👇 ADICIONEI ESTE MÉTODO CORRIGIDO E COMPLETO 👇
+  /// Cria uma cópia do objeto Product, permitindo alterar alguns de seus valores.
+  Product copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? imageUrl,
+    String? category,
+    String? location,
+    Timestamp? postedAt,
+    String? donatorId,
+    String? donatorName,
+    String? status,
+  }) {
+    return Product(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
+      category: category ?? this.category,
+      location: location ?? this.location,
+      postedAt: postedAt ?? this.postedAt,
+      donatorId: donatorId ?? this.donatorId,
+      donatorName: donatorName ?? this.donatorName,
+      status: status ?? this.status,
+    );
   }
 }

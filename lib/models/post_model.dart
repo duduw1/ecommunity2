@@ -1,3 +1,5 @@
+// Conteúdo correto para: lib/models/post_model.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Post {
@@ -14,7 +16,6 @@ class Post {
   });
 
   /// Converte um objeto Post para um Map<String, dynamic> para salvar no Firestore.
-  /// O 'id' não é incluído aqui porque ele é o nome do documento, não um campo.
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
@@ -25,14 +26,12 @@ class Post {
 
   /// Factory constructor para criar um Post a partir de um DocumentSnapshot do Firestore.
   factory Post.fromFirestore(DocumentSnapshot doc) {
-    // Pega os dados do documento, garantindo que é um Map
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
     return Post(
-      id: doc.id, // O ID vem do próprio DocumentSnapshot
-      userId: data['userId'] ?? '', // Usa um valor padrão caso o campo não exista
+      id: doc.id,
+      userId: data['userId'] ?? '',
       text: data['text'] ?? '',
-      // Se 'createdAt' não existir, usa a data atual como fallback
       createdAt: data['createdAt'] ?? Timestamp.now(),
     );
   }
