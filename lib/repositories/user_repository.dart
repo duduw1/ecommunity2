@@ -7,7 +7,7 @@ class UserRepository {
       .collection('users');
 
   /// CREATE: Adds a new user document to Firestore.
-  /// The user object's 'id' will be ignored as Firestore generates a new one.
+  /// The user object's 'id' will be ignored as Firestore generates a new one 1.
   Future<void> addUser(User user) async {
     try {
       // Use AWAIT to wait for the operation to complete.

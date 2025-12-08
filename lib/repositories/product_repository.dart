@@ -1,12 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:ecommunity/models/product_model.dart'; // MODIFICADO: Importa o novo modelo.
+import 'package:ecommunity/models/product_model.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
-// MODIFICADO: A classe agora se chama ProductRepository.
 class ProductRepository {
-  // MODIFICADO: A coleção no Firestore agora se chama 'products'. É mais limpo.
   final _productsCollection = FirebaseFirestore.instance.collection('products');
 
-  /// MODIFICADO: O método agora retorna uma lista de Products.
   Future<List<Product>> getAvailableProducts() async {
     try {
       final querySnapshot = await _productsCollection
@@ -14,7 +12,6 @@ class ProductRepository {
           .orderBy('postedAt', descending: true)
           .get();
 
-      // MODIFICADO: Mapeia para o objeto Product.
       return querySnapshot.docs
           .map((doc) => Product.fromFirestore(doc))
           .toList();
@@ -24,7 +21,6 @@ class ProductRepository {
     }
   }
 
-  /// MODIFICADO: O método agora adiciona um produto.
   Future<void> addProduct(Map<String, dynamic> productData) async {
     try {
       productData['postedAt'] = FieldValue.serverTimestamp();
@@ -36,7 +32,6 @@ class ProductRepository {
     }
   }
 
-  /// MODIFICADO: O método atualiza o status de um produto.
   Future<void> updateProductStatus(String productId, String newStatus) async {
     try {
       await _productsCollection.doc(productId).update({'status': newStatus});
@@ -46,24 +41,38 @@ class ProductRepository {
     }
   }
 
-  // Em: lib/repositories/product_repository.dart
-// Dentro da classe ProductRepository
-
-  /// ATUALIZA um produto existente no Firestore.
   Future<void> updateProduct(Product product) async {
     try {
-      // 1. Acessa a coleção 'products'
-      final collection = _productsCollection; // CORREÇÃO: Usando a variável que já existe
-
-      // 2. Converte o objeto Product para um Map (usando o método toMap que já existe no seu modelo)
+      final collection = _productsCollection;
       final productData = product.toMap();
-
-      // 3. Usa o método 'update' do Firestore para salvar os dados no documento com o ID correspondente.
       await collection.doc(product.id).update(productData);
     } catch (e) {
-      // 4. Em caso de erro, lança uma exceção para que a tela possa mostrá-la ao usuário.
       print("Erro ao atualizar produto no Firestore: $e");
       throw Exception('Não foi possível atualizar o produto. Tente novamente.');
+    }
+  }
+
+  /// Exclui um produto e sua imagem associada.
+  Future<void> deleteProduct(Product product) async {
+    try {
+      // 1. Excluir a imagem do Firebase Storage
+      if (product.imageUrl.isNotEmpty) {
+        try {
+          // Extrai o caminho do arquivo da URL completa
+          final ref = FirebaseStorage.instance.refFromURL(product.imageUrl);
+          await ref.delete();
+        } on FirebaseException catch (e) {
+          // Se o arquivo não existir, não é um erro fatal para a exclusão do produto.
+          print("Erro ao excluir imagem (pode não existir): $e");
+        }
+      }
+
+      // 2. Excluir o documento do Firestore
+      await _productsCollection.doc(product.id).delete();
+
+    } catch (e) {
+      print("Erro ao excluir produto: $e");
+      throw Exception('Não foi possível excluir o produto.');
     }
   }
 }
