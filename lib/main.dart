@@ -1,6 +1,5 @@
 // import 'package:ecommunity/AppColors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:ecommunity/providers/auth_provider.dart';
 import 'package:ecommunity/screens/home_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -21,7 +20,6 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  await SessionManager().loadUserFromPreferences();
 
   runApp(const App());
 }

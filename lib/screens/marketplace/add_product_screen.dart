@@ -1,12 +1,10 @@
-import 'dart:typed_data'; // Importa Uint8List
-import 'package:ecommunity/models/user_model.dart';
+import 'dart:typed_data';
 import 'package:ecommunity/repositories/product_repository.dart';
-import 'package:ecommunity/providers/auth_provider.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import Auth
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore to get user name
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-
-// REMOVIDO: import 'dart:io'; (não é mais necessário para a imagem)
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -17,14 +15,16 @@ class AddProductScreen extends StatefulWidget {
 class _AddProductScreenState extends State<AddProductScreen> {
   final _formKey = GlobalKey<FormState>();
   final _productRepository = ProductRepository();
+
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
 
   XFile? _imageFile;
-  Uint8List? _imageBytes; // Para exibição e upload cross-platform
+  Uint8List? _imageBytes;
   String? _selectedCategory;
   bool _isLoading = false;
+
   final List<String> _categories = ['Móveis', 'Eletrônicos', 'Roupas', 'Livros', 'Outros'];
 
   @override
@@ -37,20 +37,28 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? selectedImage = await picker.pickImage(source: ImageSource.gallery);
-    if (selectedImage != null) {
-      final bytes = await selectedImage.readAsBytes();
-      setState(() {
-        _imageFile = selectedImage;
-        _imageBytes = bytes;
-      });
+    try {
+      final XFile? selectedImage = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 50,
+      );
+
+      if (selectedImage != null) {
+        final bytes = await selectedImage.readAsBytes();
+        setState(() {
+          _imageFile = selectedImage;
+          _imageBytes = bytes;
+        });
+      }
+    } catch (e) {
+      print("Error picking image: $e");
     }
   }
 
   Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    // 1. Validate inputs
+    if (!_formKey.currentState!.validate()) return;
+
     if (_imageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor, selecione uma imagem.')),
@@ -58,33 +66,51 @@ class _AddProductScreenState extends State<AddProductScreen> {
       return;
     }
 
+    // 2. Direct Auth Check (No SessionManager)
+    final User? firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erro: Usuário não autenticado.')),
+      );
+      return;
+    }
+
     setState(() { _isLoading = true; });
 
     try {
-      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_${_imageFile?.name ?? 'image.jpg'}';
+      // 3. Fetch current User Data from Firestore to get the Name
+      // We do this to ensure we have the correct display name associated with the UID
+      final DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(firebaseUser.uid)
+          .get();
+
+      final String userName = userDoc.exists
+          ? (userDoc.data() as Map<String, dynamic>)['name'] ?? 'Anônimo'
+          : 'Anônimo';
+
+      // 4. Upload Image to Firebase Storage
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_${firebaseUser.uid}.jpg';
       final Reference storageRef = FirebaseStorage.instance.ref().child('product_images').child(fileName);
 
-      // Usa putData, que funciona em todas as plataformas
-      final UploadTask uploadTask = storageRef.putData(_imageBytes!);
+      final metadata = SettableMetadata(contentType: 'image/jpeg');
+      final UploadTask uploadTask = storageRef.putData(_imageBytes!, metadata);
       final TaskSnapshot snapshot = await uploadTask;
       final String imageUrl = await snapshot.ref.getDownloadURL();
-      print('Upload da imagem concluído: $imageUrl');
 
-      final User? currentUser = SessionManager().currentUser;
-      if (currentUser == null) {
-        throw Exception('Sessão de usuário não encontrada.');
-      }
-
+      // 5. Prepare Product Data
       final Map<String, dynamic> productData = {
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'location': _locationController.text.trim(),
         'category': _selectedCategory,
         'imageUrl': imageUrl,
-        'donatorId': currentUser.id,
-        'donatorName': currentUser.name,
+        'donatorId': firebaseUser.uid, // Use Auth UID directly
+        'donatorName': userName,       // Use fetched name
+        'createdAt': FieldValue.serverTimestamp(),
       };
 
+      // 6. Save to Firestore via Repository
       await _productRepository.addProduct(productData);
 
       if (mounted) {
@@ -118,6 +144,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Image Picker
               GestureDetector(
                 onTap: _pickImage,
                 child: Container(
@@ -147,28 +174,36 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              // --- O resto do formulário permanece igual ---
+
+              // Title
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(labelText: 'Título do Item'),
+                decoration: const InputDecoration(labelText: 'Título do Item', border: OutlineInputBorder()),
                 validator: (value) => value!.trim().isEmpty ? 'Título é obrigatório.' : null,
               ),
               const SizedBox(height: 16),
+
+              // Description
               TextFormField(
                 controller: _descriptionController,
-                decoration: const InputDecoration(labelText: 'Descrição'),
+                decoration: const InputDecoration(labelText: 'Descrição', border: OutlineInputBorder()),
                 maxLines: 3,
                 validator: (value) => value!.trim().isEmpty ? 'Descrição é obrigatória.' : null,
               ),
               const SizedBox(height: 16),
+
+              // Location
               TextFormField(
                 controller: _locationController,
-                decoration: const InputDecoration(labelText: 'Sua Cidade/Bairro'),
+                decoration: const InputDecoration(labelText: 'Sua Cidade/Bairro', border: OutlineInputBorder()),
                 validator: (value) => value!.trim().isEmpty ? 'Localização é obrigatória.' : null,
               ),
               const SizedBox(height: 16),
+
+              // Category
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
                 hint: const Text('Selecione uma Categoria'),
                 items: _categories.map((String category) {
                   return DropdownMenuItem<String>(
@@ -184,6 +219,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 validator: (value) => value == null ? 'Categoria é obrigatória.' : null,
               ),
               const SizedBox(height: 32),
+
+              // Button
               ElevatedButton(
                 onPressed: _isLoading ? null : _submitForm,
                 style: ElevatedButton.styleFrom(

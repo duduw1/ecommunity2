@@ -1,16 +1,12 @@
-import 'package:ecommunity/AppColors.dart';
 import 'package:ecommunity/screens/marketplace/marketplace_screen.dart';
 import 'package:ecommunity/screens/profile/profile_screen.dart';
 import 'package:ecommunity/screens/social/social_feed_screen.dart';
-
-// import 'package:ecommunity/screens/social/widgets/post_card.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+
 import 'package:ecommunity/screens/ai_assistant/ai_assistant_screen.dart';
 import 'package:ecommunity/screens/auth/login_screen.dart';
 import 'package:ecommunity/screens/auth/signup_screen.dart';
-
-import '../models/post_model.dart';
-import '../providers/auth_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.title, required this.changeTheme});
@@ -23,27 +19,20 @@ class HomeScreen extends StatefulWidget {
 }
 
 class HomeScreenState extends State<HomeScreen> {
-  // 1. State variable to track the current selected index
   int _selectedIndex = 0;
-
-  // List of screens to navigate between
   late final List<Widget> _widgetOptions;
 
   @override
   void initState() {
     super.initState();
     _widgetOptions = <Widget>[
-      // 0: Home Feed
-      SocialFeedScreen(), // Main Feed
-      // 1: Marketplace (Dummy)
-      MarketplaceScreen(),
-      // 2: AI Assistant
+      const SocialFeedScreen(),
+      const MarketplaceScreen(),
       const AiAssistantScreen(),
       const ProfileScreen(),
     ];
   }
 
-  // 2. Method to update the selected index
   void _onDestinationSelected(int index) {
     setState(() {
       _selectedIndex = index;
@@ -54,11 +43,34 @@ class HomeScreenState extends State<HomeScreen> {
     return widget.title;
   }
 
+  // New Logout Logic
+  Future<void> _logout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+
+      // Close the Drawer first
+      if (mounted) Navigator.pop(context);
+
+      // Navigate to Login Screen and remove history
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+        );
+      }
+    } catch (e) {
+      print("Error signing out: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final session = SessionManager();
-    final bool isLoggedIn = session.isLoggedIn();
-    final String? userName = session.currentUser?.name;
+    // 1. Get current Firebase User directly
+    final User? user = FirebaseAuth.instance.currentUser;
+    final bool isLoggedIn = user != null;
+
+    // Use email or displayName if available, otherwise generic text
+    final String displayTitle = user?.displayName ?? user?.email ?? "Visitante";
 
     return Scaffold(
       appBar: AppBar(
@@ -72,74 +84,70 @@ class HomeScreenState extends State<HomeScreen> {
         ],
       ),
       drawer: Drawer(
-        // Usar um ListView garante que o conteúdo possa rolar se a tela for pequena.
         child: ListView(
-          // Remove qualquer preenchimento do ListView.
           padding: EdgeInsets.zero,
           children: <Widget>[
-            // O cabeçalho do Drawer. Fica visualmente mais agradável.
             DrawerHeader(
               decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).primaryColor, // Usa a cor primária do seu tema
+                color: Theme.of(context).primaryColor,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Icon(
-                    Icons.eco, // Ícone relacionado ao tema do app
+                  const Icon(
+                    Icons.eco,
                     color: Colors.white,
                     size: 48,
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     'Ecommunity',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  // Optional: Show email in header
+                  if (isLoggedIn)
+                    Text(
+                      displayTitle,
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
               ),
             ),
 
             if (isLoggedIn) ...[
-              // === SHOW THESE ITEMS IF THE USER IS LOGGED IN ===
+              // === SHOW THESE ITEMS IF LOGGED IN ===
               ListTile(
                 leading: const Icon(Icons.account_circle),
-                title: Text(userName ?? "profile"),
+                title: const Text("Meu Perfil"),
                 onTap: () {
-                  // TODO: Navigate to the user's profile screen
-                  Navigator.pop(context); // Close drawer
+                  Navigator.pop(context);
+                  // Switch to Profile Tab (Index 3)
+                  setState(() {
+                    _selectedIndex = 3;
+                  });
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.settings),
-                title: const Text('Settings'),
+                title: const Text('Configurações'),
                 onTap: () {
-                  // TODO: Navigate to a settings screen
-                  Navigator.pop(context); // Close drawer
+                  Navigator.pop(context);
                 },
               ),
-              const Divider(), // A visual separator
+              const Divider(),
               ListTile(
-                leading: const Icon(Icons.logout),
-                title: const Text('Logout'),
-                onTap: () {
-                  // --- NEW: Call the logout method ---
-                  session.logout();
-                  Navigator.pop(context); // Close the drawer
-
-                  // Optional: Force the screen to rebuild to reflect the change
-                  // This is important!
-                  setState(() {});
-                },
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text('Sair', style: TextStyle(color: Colors.red)),
+                onTap: _logout, // Call the new logout method
               ),
             ] else ...[
-              // === SHOW THESE ITEMS IF THE USER IS NOT LOGGED IN ===
+              // === SHOW THESE ITEMS IF NOT LOGGED IN ===
               ListTile(
                 leading: const Icon(Icons.login),
                 title: const Text('Entrar'),
@@ -164,14 +172,10 @@ class HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-
-      // 3. Use IndexedStack to display the selected screen while preserving its state
       body: IndexedStack(index: _selectedIndex, children: _widgetOptions),
-
-      // 4. Use the modern NavigationBar widget
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: _onDestinationSelected, // New M3 callback name
+        onDestinationSelected: _onDestinationSelected,
         destinations: const <NavigationDestination>[
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -181,22 +185,20 @@ class HomeScreenState extends State<HomeScreen> {
           NavigationDestination(
             icon: Icon(Icons.store_outlined),
             selectedIcon: Icon(Icons.store),
-            label: 'Store',
+            label: 'Loja',
           ),
           NavigationDestination(
             icon: Icon(Icons.assistant_outlined),
             selectedIcon: Icon(Icons.assistant),
-            label: 'AI',
+            label: 'IA',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outlined),
             selectedIcon: Icon(Icons.person),
-            label: 'Profile',
+            label: 'Perfil',
           ),
         ],
       ),
     );
   }
 }
-
-// Custom widget for displaying a single post card

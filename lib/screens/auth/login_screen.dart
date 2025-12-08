@@ -1,11 +1,11 @@
-import 'package:ecommunity/providers/auth_provider.dart';
 import 'package:ecommunity/repositories/user_repository.dart';
-import 'package:ecommunity/screens/social/social_feed_screen.dart';
+import 'package:ecommunity/services/auth_service.dart'; // Import AuthService
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // Alias to avoid conflict with your User model
 import 'package:flutter/material.dart';
 
 import '../../main.dart';
 import '../../models/user_model.dart';
-import '../home_screen.dart';
+// import '../home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,19 +15,18 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Chave global para identificar e validar nosso formulário.
   final _formKey = GlobalKey<FormState>();
-  final UserRepository userRepository = UserRepository();
 
-  // Controladores para ler os valores dos campos de texto.
+  // Dependencies
+  final UserRepository userRepository = UserRepository();
+  final AuthService _authService = AuthService();
+
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  // Variáveis de estado da UI.
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  // Libera os controladores da memória quando a tela é descartada.
   @override
   void dispose() {
     _emailController.dispose();
@@ -35,50 +34,84 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// Função chamada quando o botão de login é pressionado.
+  /// Updated Sign In Logic
   Future<void> _signIn() async {
-    // Valida os campos do formulário.
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() {
-        _isLoading = true;
-      });
-      User? user = await userRepository.getUserByEmail(_emailController.text);
-      if (user == null) {
+    // 1. Validate Form
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 2. Authenticate with Firebase Auth (Checks email & password securely)
+      final credential = await _authService.signInWithEmailAndPassword(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+
+      // If credential is null, AuthService likely caught an error and returned null,
+      // or we handle specific errors in the catch block below.
+      if (credential == null || credential.user == null) {
+        throw Exception("Falha na autenticação. Verifique suas credenciais.");
+      }
+
+      // 3. Get the User ID (UID) from Firebase Auth
+      String uid = credential.user!.uid;
+
+      // 4. Fetch the User Profile from Firestore using the UID
+      User? userProfile = await userRepository.getUserById(uid);
+
+      if (userProfile != null) {
+        // 5. Success! Save to SessionManager and Navigate
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Usuário com este email não existe')),
+            const SnackBar(content: Text('Login bem-sucedido!'), backgroundColor: Colors.green),
+          );
+
+          // Navigate to main App and remove back button history
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const App()),
+                (route) => false,
           );
         }
-      } else if (user.password == _passwordController.text) {
-        SessionManager().login(user);
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => App()));
       } else {
+        // Edge Case: User exists in Auth, but not in Database
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Senha incorreta')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Perfil de usuário não encontrado.')),
+          );
+          // Optional: Sign out from Auth if no profile exists
+          _authService.signOut();
         }
       }
-      // --- LÓGICA DE LOGIN COM FIREBASE ENTRARIA AQUI ---
-      // Exemplo:
-      // await authRepository.signInWithEmail(
-      //   email: _emailController.text,
-      //   password: _passwordController.text,
-      // );
-      // ----------------------------------------------------
 
-      // Após a conclusão, para o indicador de carregamento.
-      // Em um app real, você navegaria para a home screen em caso de sucesso.
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      // Handle specific Firebase errors
+      String message = "Ocorreu um erro ao fazer login.";
+      if (e.code == 'user-not-found') {
+        message = "Usuário não encontrado.";
+      } else if (e.code == 'wrong-password') {
+        message = "Senha incorreta.";
+      } else if (e.code == 'invalid-credential') {
+        message = "Email ou senha inválidos.";
+      }
+
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Login bem-sucedido!')));
-        // Navigator.of(context).pushReplacementNamed('/home');
-        setState(() {
-          _isLoading = false;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      // Handle generic errors
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      // 6. Stop loading spinner
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -100,7 +133,6 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Título da tela
                 Text(
                   'Bem-vindo de volta!',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -116,7 +148,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // Campo de Email
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
@@ -129,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (value == null || value.trim().isEmpty) {
                       return 'Por favor, insira seu e-mail.';
                     }
-                    if (!value.contains('@') || !value.contains('.')) {
+                    if (!value.contains('@')) {
                       return 'Por favor, insira um e-mail válido.';
                     }
                     return null;
@@ -137,7 +168,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Campo de Senha
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -147,9 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
+                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
                       ),
                       onPressed: () {
                         setState(() {
@@ -167,7 +195,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Botão de Login
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -178,26 +205,25 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _isLoading ? null : _signIn,
                   child: _isLoading
                       ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 3,
-                          ),
-                        )
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 3,
+                    ),
+                  )
                       : const Text('Entrar', style: TextStyle(fontSize: 16)),
                 ),
                 const SizedBox(height: 24),
 
-                // Link para a tela de Cadastro
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text('Não tem uma conta?'),
                     TextButton(
                       onPressed: () {
-                        // TODO: Adicionar navegação para a tela de Cadastro
-                        // Navigator.of(context).pushReplacementNamed('/signup');
+                        // TODO: Navigate to SignUpScreen
+                        // Navigator.of(context).push(MaterialPageRoute(builder: (_) => SignUpScreen()));
                       },
                       child: const Text('Cadastre-se'),
                     ),

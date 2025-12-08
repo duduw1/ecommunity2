@@ -6,13 +6,11 @@ class User {
   final String id; // The document ID
   final String name;
   final String email;
-  final String password;
 
   User({
     required this.id,
     required this.name,
     required this.email,
-    required this.password,
   });
 
   // A factory constructor to create a User from a Firestore document
@@ -22,13 +20,12 @@ class User {
       id: doc.id,
       name: data['name'] ?? '',
       email: data['email'] ?? '',
-      password: data['password'],
     );
   }
 
   // A method to convert a User object to a Map for Firestore
   Map<String, dynamic> toMap() {
-    return {'name': name, 'email': email, 'password': password};
+    return {'name': name, 'email': email};
   }
 
   String toJson() {
@@ -36,7 +33,6 @@ class User {
       'id': id,
       'name': name,
       'email': email,
-      'password': password,
     });
   }
 
@@ -47,7 +43,6 @@ class User {
       id: data['id'],
       name: data['name'],
       email: data['email'],
-      password: data['password'],
     );
   }
 

@@ -1,6 +1,8 @@
-import 'package:ecommunity/models/user_model.dart';
-import 'package:ecommunity/providers/auth_provider.dart'; // Importe seu SessionManager
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // Alias Firebase Auth
 import 'package:flutter/material.dart';
+import 'package:ecommunity/models/user_model.dart'; // Your local User model
+import 'package:ecommunity/screens/auth/login_screen.dart'; // Import your LoginScreen
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -10,7 +12,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Variável para armazenar os dados do usuário logado.
+  // Variable to store the logged-in user data (from your model).
   User? _currentUser;
   bool _isLoading = true;
 
@@ -20,29 +22,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserData();
   }
 
-  /// Carrega os dados do usuário a partir do SessionManager.
-  void _loadUserData() {
-    // Acessa a instância singleton do SessionManager para obter o usuário atual.
-    final user = SessionManager().currentUser;
-    setState(() {
-      _currentUser = user;
-      _isLoading = false;
-    });
+  /// Loads user data directly from Firestore using the Auth UID.
+  Future<void> _loadUserData() async {
+    try {
+      // 1. Get the current logged-in user from Firebase Auth
+      final firebase_auth.User? authUser = firebase_auth.FirebaseAuth.instance.currentUser;
+
+      if (authUser == null) {
+        // Not logged in
+        setState(() {
+          _currentUser = null;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // 2. Fetch the user document from Firestore
+      DocumentSnapshot doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(authUser.uid)
+          .get();
+
+      if (doc.exists) {
+        // 3. Convert Firestore data to your User model
+        setState(() {
+          _currentUser = User.fromFirestore(doc);
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _currentUser = null; // User authenticated, but no profile data found
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading profile: $e");
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
-  /// Executa o processo de logout.
+  /// Executes logout logic.
   Future<void> _logout() async {
-    // Chama o método de logout do seu SessionManager.
-    await SessionManager().logout();
+    try {
+      // 1. Sign out from Firebase
+      await firebase_auth.FirebaseAuth.instance.signOut();
 
-    // Após o logout, navega para a tela de autenticação e remove todas as
-    // telas anteriores da pilha, para que o usuário не possa voltar para a tela de perfil.
-    // if (mounted) {
-    //   Navigator.of(context).pushAndRemoveUntil(
-    //     MaterialPageRoute(builder: (context) => const AuthWrapper()),
-    //         (Route<dynamic> route) => false, // Este predicado remove todas as rotas.
-    //   );
-    // }
+      // 2. Navigate back to LoginScreen and clear the stack
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+              (Route<dynamic> route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao sair: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -56,25 +96,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _currentUser == null
-          ? _buildErrorView() // Mostra uma mensagem se os dados não puderem ser carregados
+          ? _buildErrorView()
           : _buildProfileView(),
     );
   }
 
-  /// Constrói a visualização principal do perfil do usuário.
+  /// Builds the main profile view.
   Widget _buildProfileView() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 60,
             backgroundColor: Colors.green,
-            child: Icon(
-              Icons.person,
-              size: 60,
-              color: Colors.white,
+            child: Text(
+              _currentUser!.name.isNotEmpty ? _currentUser!.name[0].toUpperCase() : '?',
+              style: const TextStyle(fontSize: 40, color: Colors.white),
             ),
           ),
           const SizedBox(height: 16),
@@ -97,15 +136,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const Divider(),
           const SizedBox(height: 16),
 
-          // --- Botões de Ação ---
+          // --- Action Buttons ---
           _buildActionButton(
             icon: Icons.edit_outlined,
             text: 'Editar Perfil',
             onTap: () {
-              // TODO: Navegar para uma tela de edição de perfil.
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Funcionalidade de edição a ser implementada.')),
+                const SnackBar(content: Text('Funcionalidade de edição a ser implementada.')),
               );
             },
           ),
@@ -113,7 +150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildActionButton(
             icon: Icons.logout,
             text: 'Sair (Logout)',
-            color: Colors.red, // Destaque para a ação de sair
+            color: Colors.red,
             onTap: _logout,
           ),
         ],
@@ -121,7 +158,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Constrói um item de menu de ação reutilizável.
+  /// Helper widget for action buttons
   Widget _buildActionButton({
     required IconData icon,
     required String text,
@@ -135,7 +172,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Constrói uma visualização de erro caso os dados do usuário não sejam encontrados.
+  /// Builds an error view if user data cannot be loaded.
   Widget _buildErrorView() {
     return Center(
       child: Padding(

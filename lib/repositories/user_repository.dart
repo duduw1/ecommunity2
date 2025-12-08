@@ -11,7 +11,7 @@ class UserRepository {
   Future<void> addUser(User user) async {
     try {
       // Use AWAIT to wait for the operation to complete.
-      await _usersCollection.add(user.toMap());
+      await _usersCollection.doc(user.id).set(user.toMap());
       print("User data successfully added to Firestore.");
     } catch (e) {
       print("Error adding user to Firestore: $e");

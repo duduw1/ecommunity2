@@ -1,5 +1,6 @@
 import 'package:ecommunity/repositories/post_repository.dart';
-import 'package:ecommunity/providers/auth_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:firebase_auth/firebase_auth.dart';     // Import Auth
 import 'package:flutter/material.dart';
 
 class CreatePostScreen extends StatefulWidget {
@@ -10,66 +11,73 @@ class CreatePostScreen extends StatefulWidget {
 }
 
 class _CreatePostScreenState extends State<CreatePostScreen> {
-  // Chave para identificar e validar nosso formulário
   final _formKey = GlobalKey<FormState>();
-
-  // Controlador para acessar o texto do campo de entrada
   final _postTextController = TextEditingController();
 
-  // Estado para controlar o processo de publicação
+  // Instance of repository
+  final _postRepository = PostRepository();
+
   bool _isPosting = false;
 
   @override
   void dispose() {
-    // É importante limpar o controlador quando o widget for removido da árvore
     _postTextController.dispose();
     super.dispose();
   }
 
-  /// Lida com a lógica de submissão do post
+  /// Handles post submission logic
   Future<void> _submitPost() async {
-    // 1. Valida o formulário. Se não for válido, não faz nada.
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    // 1. Validate Form
+    if (!_formKey.currentState!.validate()) return;
 
-    // 2. Pega o ID do usuário logado. Se não houver, mostra erro.
-    final userId = SessionManager().getCurrentUserId();
-    if (userId == null) {
+    // 2. Get Current User from Firebase Auth
+    final User? user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erro: Usuário não autenticado.')),
+        const SnackBar(content: Text('Erro: Você precisa estar logado.')),
       );
       return;
     }
 
-    // 3. Inicia o estado de "publicando"
     setState(() {
       _isPosting = true;
     });
 
     try {
-      // 4. Chama o repositório para adicionar o post
-      await PostRepository().addPost(
-        userId: userId,
-        text: _postTextController.text.trim(), // trim() remove espaços em branco
+      // 3. Fetch User Profile to get the Name
+      // We want to store the author's name inside the post document
+      final DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final String userName = userDoc.exists
+          ? (userDoc.data() as Map<String, dynamic>)['name'] ?? 'Anônimo'
+          : 'Anônimo';
+
+      // 4. Send to Repository
+      // I am assuming your PostRepository takes these parameters.
+      // If it takes a Map, you can adjust it similar to the AddProductScreen example.
+      await _postRepository.addPost(
+        userId: user.uid,
+        userName: userName, // Pass the name so it appears in the feed
+        text: _postTextController.text.trim(),
       );
 
-      // 5. Em caso de sucesso, mostra mensagem e fecha a tela
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Publicação criada com sucesso!')),
         );
-        Navigator.of(context).pop(); // Volta para a tela anterior (o feed)
+        Navigator.of(context).pop();
       }
     } catch (e) {
-      // 6. Em caso de erro, mostra uma mensagem de falha
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Falha ao criar a publicação. Tente novamente.')),
+          SnackBar(content: Text('Falha ao criar publicação: $e')),
         );
       }
     } finally {
-      // 7. Independentemente de sucesso ou falha, finaliza o estado de "publicando"
       if (mounted) {
         setState(() {
           _isPosting = false;
@@ -80,27 +88,31 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Get colors from theme to ensure visibility on light/dark mode
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nova Publicação'),
         actions: [
-          // Botão de Publicar na AppBar
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: TextButton(
-              // Desabilita o botão enquanto estiver publicando
               onPressed: _isPosting ? null : _submitPost,
+              style: TextButton.styleFrom(
+                // Use primary color for text, or grey if disabled
+                foregroundColor: _isPosting ? colorScheme.onSurface.withOpacity(0.38) : colorScheme.primary,
+              ),
               child: _isPosting
-                  ? const SizedBox(
+                  ? SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colorScheme.primary,
+                ),
               )
-                  : const Text('PUBLICAR'),
-              style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  disabledForegroundColor: Colors.white.withOpacity(0.5)
-              ),
+                  : const Text('PUBLICAR', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -111,26 +123,24 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           key: _formKey,
           child: Column(
             children: [
-              // Campo de texto para o conteúdo do post
               TextFormField(
                 controller: _postTextController,
-                autofocus: true, // Abre o teclado automaticamente
+                autofocus: true,
                 decoration: const InputDecoration(
                     hintText: 'No que você está pensando?',
-                    border: InputBorder.none, // Um visual mais limpo, sem bordas
+                    border: InputBorder.none,
                     hintStyle: TextStyle(color: Colors.grey)
                 ),
-                maxLines: null, // Permite que o campo cresça verticalmente
+                maxLines: null,
                 keyboardType: TextInputType.multiline,
                 validator: (value) {
-                  // Validador para garantir que o post não seja vazio
                   if (value == null || value.trim().isEmpty) {
                     return 'A publicação não pode estar vazia.';
                   }
-                  if (value.length > 280) { // Exemplo de limite de caracteres
+                  if (value.length > 280) {
                     return 'A publicação não pode ter mais de 280 caracteres.';
                   }
-                  return null; // Retornar null significa que a validação passou
+                  return null;
                 },
               ),
             ],
