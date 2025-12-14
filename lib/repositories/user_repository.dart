@@ -52,24 +52,48 @@ class UserRepository {
     await _usersCollection.doc(userId).delete();
   }
 
-  // --- NOVAS FUNÇÕES PARA INTERESSES ---
+  // --- FUNÇÕES DE INTERESSE (ATUALIZADAS) ---
 
-  /// Salva um produto na subcoleção 'interests' do usuário
-  Future<void> addInterest(String userId, Product product) async {
+  /// Alterna o interesse: Se não existe, adiciona. Se existe, remove.
+  /// Retorna TRUE se ficou interessado, FALSE se removeu o interesse.
+  Future<bool> toggleInterest(String userId, Product product) async {
     try {
-      // Salvamos uma cópia dos dados do produto para facilitar a exibição
-      // mesmo que o produto original mude, mantemos o registro do interesse naquele momento.
-      await _usersCollection
+      final docRef = _usersCollection
           .doc(userId)
           .collection('interests')
-          .doc(product.id)
-          .set({
-            ...product.toMap(),
-            'interestedAt': FieldValue.serverTimestamp(),
-          });
+          .doc(product.id);
+
+      final docSnapshot = await docRef.get();
+
+      if (docSnapshot.exists) {
+        // Já tem interesse -> Remover
+        await docRef.delete();
+        return false; // Não está mais interessado
+      } else {
+        // Não tem interesse -> Adicionar
+        await docRef.set({
+          ...product.toMap(),
+          'interestedAt': FieldValue.serverTimestamp(),
+        });
+        return true; // Agora está interessado
+      }
     } catch (e) {
-      print("Erro ao salvar interesse: $e");
-      throw Exception('Não foi possível salvar o interesse.');
+      print("Erro ao alternar interesse: $e");
+      throw Exception('Erro ao atualizar interesse.');
+    }
+  }
+
+  /// Verifica se o usuário já tem interesse em um produto específico
+  Future<bool> hasInterest(String userId, String productId) async {
+    try {
+      final doc = await _usersCollection
+          .doc(userId)
+          .collection('interests')
+          .doc(productId)
+          .get();
+      return doc.exists;
+    } catch (e) {
+      return false;
     }
   }
 

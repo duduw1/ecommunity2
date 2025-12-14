@@ -2,6 +2,7 @@ import 'package:ecommunity/screens/marketplace/marketplace_screen.dart';
 import 'package:ecommunity/screens/profile/my_activity_screen.dart'; // Import MyActivityScreen
 import 'package:ecommunity/screens/profile/profile_screen.dart';
 import 'package:ecommunity/screens/social/chat_list_screen.dart'; // Import ChatListScreen
+import 'package:ecommunity/screens/social/notifications_screen.dart'; // Import NotificationsScreen
 import 'package:ecommunity/screens/social/social_feed_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
@@ -71,6 +72,12 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openNotifications() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 1. Get current Firebase User directly
@@ -86,16 +93,18 @@ class HomeScreenState extends State<HomeScreen> {
         title: Text(_getAppBarTitle(_selectedIndex)),
         actions: [
           // Adicionei o botão de chat aqui
-          if (isLoggedIn)
+          if (isLoggedIn) ...[
             IconButton(
-              icon: const Icon(Icons.chat),
+              icon: const Icon(Icons.chat), // Botão de Chat (trocado de lugar)
               tooltip: 'Minhas Conversas',
               onPressed: _openChatList,
             ),
-          IconButton(
-            icon: const Icon(Icons.brightness_6),
-            onPressed: widget.changeTheme,
-          ),
+            IconButton(
+              icon: const Icon(Icons.notifications), // Botão de Notificações (trocado de lugar)
+              tooltip: 'Notificações',
+              onPressed: _openNotifications,
+            ),
+          ],
         ],
       ),
       drawer: Drawer(
@@ -168,6 +177,24 @@ class HomeScreenState extends State<HomeScreen> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.notifications_outlined), // Ícone de Notificações no menu
+                title: const Text("Notificações"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openNotifications();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.brightness_6), // Alternar tema movido para o menu lateral
+                title: const Text('Alternar Tema'),
+                onTap: () {
+                  // Primeiro chama a função de troca de tema
+                  widget.changeTheme(); 
+                  // Depois fecha o drawer
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.settings),
                 title: const Text('Configurações'),
                 onTap: () {
@@ -200,6 +227,14 @@ class HomeScreenState extends State<HomeScreen> {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SignUpScreen()),
                   );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.brightness_6), // Alternar tema para não logados também
+                title: const Text('Alternar Tema'),
+                onTap: () {
+                  widget.changeTheme();
+                  Navigator.pop(context);
                 },
               ),
             ],

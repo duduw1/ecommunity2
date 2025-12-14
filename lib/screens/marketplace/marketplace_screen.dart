@@ -1,5 +1,6 @@
 import 'package:ecommunity/models/product_model.dart';
 import 'package:ecommunity/repositories/product_repository.dart';
+import 'package:ecommunity/repositories/user_repository.dart'; // Importe o User Repository
 import 'package:ecommunity/screens/marketplace/edit_product_screen.dart';
 import 'package:ecommunity/screens/marketplace/product_detail_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,9 +17,13 @@ class MarketplaceScreen extends StatefulWidget {
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
   final ProductRepository _repository = ProductRepository();
+  final UserRepository _userRepository = UserRepository(); // Instância do UserRepo
+
   bool _isLoading = true;
   List<Product> _products = [];
   List<Product> _filteredProducts = []; // Para a pesquisa
+  Set<String> _interestedProductIds = {}; // Armazena IDs dos produtos que tenho interesse
+
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
   String? _currentUserId;
@@ -42,7 +47,15 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       setState(() { _isLoading = true; });
     }
     try {
+      // 1. Busca os produtos disponíveis
       final fetchedProducts = await _repository.getAvailableProducts();
+      
+      // 2. Se logado, busca meus interesses para pintar os botões corretamente
+      if (_currentUserId != null) {
+        final myInterests = await _userRepository.getUserInterests(_currentUserId!);
+        _interestedProductIds = myInterests.map((p) => p.id).toSet();
+      }
+
       setState(() {
         _products = fetchedProducts;
         _filteredProducts = fetchedProducts;
@@ -124,7 +137,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => ProductDetailScreen(product: product)),
-    ).then((_) => _fetchProducts()); // Recarrega ao voltar
+    ).then((_) => _fetchProducts()); // Recarrega ao voltar para atualizar interesses
   }
 
   @override
@@ -213,6 +226,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   Widget _buildProductCard(Product product) {
     // Verifica se o usuário atual é o dono do produto
     bool isOwner = _currentUserId == product.donatorId;
+    bool isInterested = _interestedProductIds.contains(product.id);
 
     return Card(
       elevation: 4,
@@ -276,7 +290,15 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () => _openProductDetail(product),
-                      child: Text(isOwner ? 'Ver Detalhes' : 'Tenho Interesse'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isInterested ? Colors.green : null,
+                        foregroundColor: isInterested ? Colors.white : null,
+                      ),
+                      child: Text(
+                          isOwner 
+                              ? 'Ver Detalhes' 
+                              : (isInterested ? 'Interessado (Ver Detalhes)' : 'Tenho Interesse')
+                      ),
                     ),
                   ),
                 ],

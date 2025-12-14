@@ -21,23 +21,29 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   final ChatRepository _chatRepository = ChatRepository();
   bool _isLoading = false;
   bool _isOwner = false;
+  bool _hasInterest = false; // Novo estado para controlar se já tem interesse
 
   @override
   void initState() {
     super.initState();
-    _checkOwnership();
+    _checkOwnershipAndInterest();
   }
 
-  void _checkOwnership() {
+  Future<void> _checkOwnershipAndInterest() async {
     final currentUser = auth.FirebaseAuth.instance.currentUser;
-    if (currentUser != null && currentUser.uid == widget.product.donatorId) {
-      setState(() {
-        _isOwner = true;
-      });
+    if (currentUser != null) {
+      // Verifica dono
+      if (currentUser.uid == widget.product.donatorId) {
+        if (mounted) setState(() => _isOwner = true);
+      }
+      
+      // Verifica interesse inicial
+      final interested = await _userRepository.hasInterest(currentUser.uid, widget.product.id);
+      if (mounted) setState(() => _hasInterest = interested);
     }
   }
 
-  Future<void> _registerInterest() async {
+  Future<void> _toggleInterest() async {
     final currentUser = auth.FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -49,32 +55,44 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Salva nos Interesses
-      await _userRepository.addInterest(currentUser.uid, widget.product);
+      // Chama a nova função de Toggle no repositório
+      final isNowInterested = await _userRepository.toggleInterest(currentUser.uid, widget.product);
 
       if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Interesse Registrado!'),
-            content: const Text(
-                'O produto foi salvo em "Meus Interesses".\n\n'
-                'Deseja enviar uma mensagem para o doador agora?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Depois'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context); // Fecha o diálogo
-                  _contactDonator(); // Inicia o chat
-                },
-                child: const Text('Enviar Mensagem'),
-              ),
-            ],
-          ),
-        );
+        setState(() {
+          _hasInterest = isNowInterested;
+        });
+
+        if (isNowInterested) {
+          // Se acabou de marcar interesse, oferece o chat
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Interesse Registrado!'),
+              content: const Text(
+                  'O produto foi salvo em "Meus Interesses".\n\n'
+                  'Deseja enviar uma mensagem para o doador agora?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Depois'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _contactDonator();
+                  },
+                  child: const Text('Enviar Mensagem'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          // Se removeu o interesse
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Interesse removido.')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -94,11 +112,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     setState(() => _isLoading = true);
     
     try {
-      // Busca dados do usuário atual para saber o nome
       final User? myProfile = await _userRepository.getUserById(currentUser.uid);
       final myName = myProfile?.name ?? "Usuário";
 
-      // Cria ou recupera o chat
       final chatId = await _chatRepository.createOrGetChat(
         currentUser.uid,
         widget.product.donatorId,
@@ -107,7 +123,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       );
 
       if (mounted) {
-        // Navega para a tela de chat
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -127,6 +142,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String _formatDate(Timestamp timestamp) {
+    final date = timestamp.toDate();
+    return "${date.day}/${date.month}/${date.year}";
   }
 
   @override
@@ -238,10 +258,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: _isLoading ? null : _registerInterest,
+                            onPressed: _isLoading ? null : _toggleInterest,
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 16),
-                              backgroundColor: Theme.of(context).primaryColor,
+                              // Muda a cor se já tiver interesse
+                              backgroundColor: _hasInterest ? Colors.green : Theme.of(context).primaryColor,
                               foregroundColor: Colors.white,
                             ),
                             icon: _isLoading
@@ -250,25 +271,26 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                     height: 20,
                                     child: CircularProgressIndicator(
                                         color: Colors.white, strokeWidth: 2))
-                                : const Icon(Icons.favorite),
-                            label: const Text(
-                              "TENHO INTERESSE",
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                : Icon(_hasInterest ? Icons.check : Icons.favorite),
+                            label: Text(
+                              _hasInterest ? "INTERESSADO (REMOVER)" : "TENHO INTERESSE",
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),
                         const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _isLoading ? null : _contactDonator,
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                        // Só mostra o botão de contato se já tiver interesse (opcional, mas faz sentido)
+                         SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _isLoading ? null : _contactDonator,
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              ),
+                              icon: const Icon(Icons.chat),
+                              label: const Text("Entrar em Contato"),
                             ),
-                            icon: const Icon(Icons.chat),
-                            label: const Text("Entrar em Contato"),
                           ),
-                        ),
                       ],
                     )
                   else
@@ -292,10 +314,5 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ),
       ),
     );
-  }
-
-  String _formatDate(Timestamp timestamp) {
-    final date = timestamp.toDate();
-    return "${date.day}/${date.month}/${date.year}";
   }
 }

@@ -33,28 +33,71 @@ class ChatListScreen extends StatelessWidget {
               final chat = chats[index];
               
               // Descobre quem é o "outro" participante
-              final otherUserId = chat.participants.firstWhere((id) => id != currentUserId);
+              final otherUserId = chat.participants.firstWhere((id) => id != currentUserId, orElse: () => 'Desconhecido');
               final otherUserName = chat.participantNames[otherUserId] ?? "Usuário";
 
-              return ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.person)),
-                title: Text(otherUserName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(
-                  chat.lastMessage.isNotEmpty ? chat.lastMessage : "Inicie a conversa...",
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              return Dismissible(
+                key: Key(chat.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  color: Colors.red,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: const Icon(Icons.delete, color: Colors.white),
                 ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ChatScreen(
-                        chatId: chat.id,
-                        otherUserName: otherUserName,
-                      ),
-                    ),
+                confirmDismiss: (direction) async {
+                  return await showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text("Confirmar Exclusão"),
+                        content: const Text("Tem certeza de que deseja excluir esta conversa e todas as mensagens?"),
+                        actions: <Widget>[
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text("Cancelar"),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: const Text("Excluir", style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 },
+                onDismissed: (direction) async {
+                  try {
+                    await chatRepository.deleteChat(chat.id);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Conversa excluída.')),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Erro ao excluir: $e')),
+                    );
+                  }
+                },
+                child: ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person)),
+                  title: Text(otherUserName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(
+                    chat.lastMessage.isNotEmpty ? chat.lastMessage : "Inicie a conversa...",
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatScreen(
+                          chatId: chat.id,
+                          otherUserName: otherUserName,
+                        ),
+                      ),
+                    );
+                  },
+                ),
               );
             },
           );

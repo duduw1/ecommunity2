@@ -81,4 +81,21 @@ class ChatRepository {
       return snapshot.docs.map((doc) => ChatMessage.fromFirestore(doc)).toList();
     });
   }
+
+  /// Exclui um chat e todas as suas mensagens
+  Future<void> deleteChat(String chatId) async {
+    try {
+      // 1. Excluir todas as mensagens da subcoleção (necessário fazer manualmente no Firestore)
+      final messagesSnapshot = await _chatsCollection.doc(chatId).collection('messages').get();
+      for (DocumentSnapshot doc in messagesSnapshot.docs) {
+        await doc.reference.delete();
+      }
+
+      // 2. Excluir o documento do chat
+      await _chatsCollection.doc(chatId).delete();
+    } catch (e) {
+      print("Erro ao excluir chat: $e");
+      throw Exception('Falha ao excluir conversa.');
+    }
+  }
 }
