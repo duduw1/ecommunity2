@@ -122,6 +122,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         widget.product.donatorName,
       );
 
+      // Envia mensagem automática informando o produto de interesse
+      // Verifica a última mensagem para evitar duplicidade imediata
+      final chatDoc = await FirebaseFirestore.instance.collection('chats').doc(chatId).get();
+      final lastMessage = chatDoc.data()?['lastMessage'] as String? ?? '';
+      final interestMessage = "Olá! Tenho interesse na doação: ${widget.product.title}.";
+
+      if (lastMessage != interestMessage) {
+        await _chatRepository.sendMessage(chatId, currentUser.uid, interestMessage);
+      }
+
       if (mounted) {
         Navigator.push(
           context,

@@ -18,7 +18,6 @@ class _PostCardState extends State<PostCard> {
   final String _currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
   final String _currentUserName = FirebaseAuth.instance.currentUser?.displayName ?? 'Usuário';
 
-  // Variáveis para atualização otimista
   late bool _isLiked;
   late int _likeCount;
 
@@ -29,7 +28,6 @@ class _PostCardState extends State<PostCard> {
     _likeCount = widget.post.likes.length;
   }
 
-  // Atualiza o estado se o widget pai mandar um novo post (ex: via Stream)
   @override
   void didUpdateWidget(covariant PostCard oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -42,7 +40,6 @@ class _PostCardState extends State<PostCard> {
   void _handleLike() async {
     if (_currentUserId.isEmpty) return;
 
-    // Optimistic Update: Atualiza UI imediatamente
     setState(() {
       if (_isLiked) {
         _isLiked = false;
@@ -53,11 +50,9 @@ class _PostCardState extends State<PostCard> {
       }
     });
     
-    // Chama o backend em segundo plano
     try {
       await _postRepository.toggleLike(widget.post.id, _currentUserId, _currentUserName);
     } catch (e) {
-      // Reverte se der erro
       if (mounted) {
         setState(() {
           if (_isLiked) {
@@ -91,8 +86,6 @@ class _PostCardState extends State<PostCard> {
 
   @override
   Widget build(BuildContext context) {
-    // Usamos as variáveis locais (_isLiked, _likeCount) ao invés das do widget.post diretamente
-    
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 10.0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -102,7 +95,6 @@ class _PostCardState extends State<PostCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               children: [
                 CircleAvatar(
@@ -130,16 +122,11 @@ class _PostCardState extends State<PostCard> {
                 ),
               ],
             ),
-            
             const SizedBox(height: 12.0),
-            
-            // Texto
             Text(
               widget.post.text,
               style: const TextStyle(fontSize: 15, height: 1.4),
             ),
-
-            // Imagem
             if (widget.post.imageUrl != null && widget.post.imageUrl!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 12.0),
@@ -163,15 +150,11 @@ class _PostCardState extends State<PostCard> {
                   ),
                 ),
               ),
-
             const SizedBox(height: 12.0),
             const Divider(),
-
-            // Botões de Ação
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                // Botão de Like
                 InkWell(
                   onTap: _handleLike,
                   child: Padding(
@@ -195,8 +178,6 @@ class _PostCardState extends State<PostCard> {
                     ),
                   ),
                 ),
-
-                // Botão de Comentário
                 InkWell(
                   onTap: () => _showCommentsModal(context),
                   child: Padding(
@@ -206,7 +187,7 @@ class _PostCardState extends State<PostCard> {
                         const Icon(Icons.mode_comment_outlined, color: Colors.grey, size: 20),
                         const SizedBox(width: 6),
                         Text(
-                          '${widget.post.commentCount}', // Este atualiza via Stream do widget pai
+                          '${widget.post.commentCount}',
                           style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -242,7 +223,17 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     setState(() => _isSending = true);
 
     try {
-      String userName = 'Usuário'; 
+      // Busca o nome do usuário no Firestore antes de comentar
+      String userName = 'Usuário';
+      try {
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUserId).get();
+        if (userDoc.exists) {
+          userName = userDoc.data()?['name'] ?? 'Usuário';
+        }
+      } catch (e) {
+        print("Erro ao buscar nome do usuário: $e");
+      }
+
       await _postRepository.addComment(
         widget.postId,
         _currentUserId,
@@ -295,7 +286,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     return ListTile(
                       leading: CircleAvatar(
                         radius: 16,
-                        child: Text(comment.userName[0].toUpperCase()),
+                        child: Text(comment.userName.isNotEmpty ? comment.userName[0].toUpperCase() : '?'),
                       ),
                       title: Text(comment.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                       subtitle: Text(comment.text),
