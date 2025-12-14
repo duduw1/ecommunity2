@@ -1,6 +1,8 @@
 import 'package:ecommunity/models/product_model.dart';
 import 'package:ecommunity/repositories/product_repository.dart';
 import 'package:ecommunity/screens/marketplace/edit_product_screen.dart';
+import 'package:ecommunity/screens/marketplace/product_detail_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'add_product_Screen.dart';
@@ -19,10 +21,12 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   List<Product> _filteredProducts = []; // Para a pesquisa
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
+    _currentUserId = FirebaseAuth.instance.currentUser?.uid;
     _fetchProducts();
     _searchController.addListener(_filterProducts);
   }
@@ -116,6 +120,13 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     );
   }
 
+  void _openProductDetail(Product product) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ProductDetailScreen(product: product)),
+    ).then((_) => _fetchProducts()); // Recarrega ao voltar
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -200,68 +211,79 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   }
 
   Widget _buildProductCard(Product product) {
+    // Verifica se o usuário atual é o dono do produto
+    bool isOwner = _currentUserId == product.donatorId;
+
     return Card(
       elevation: 4,
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: Image.network(product.imageUrl, height: 200, width: double.infinity, fit: BoxFit.cover),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        product.title,
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (context) => EditProductScreen(product: product)),
-                            ).then((_) => _fetchProducts());
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _showDeleteConfirmationDialog(product),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text('Doador(a): ${product.donatorName} em ${product.location}', style: const TextStyle(color: Colors.grey)),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Você demonstrou interesse em: ${product.title}')),
-                    ),
-                    child: const Text('Tenho Interesse'),
-                  ),
-                ),
-              ],
+      child: InkWell(
+        onTap: () => _openProductDetail(product), // Clicar no card abre detalhes
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: product.imageUrl.isNotEmpty
+                  ? Image.network(product.imageUrl, height: 200, width: double.infinity, fit: BoxFit.cover)
+                  : Container(height: 200, width: double.infinity, color: Colors.grey[300], child: const Icon(Icons.image, size: 50)),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          product.title,
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Mostra ícones de edição/exclusão APENAS se for o dono
+                      if (isOwner)
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (context) => EditProductScreen(product: product)),
+                                ).then((_) => _fetchProducts());
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _showDeleteConfirmationDialog(product),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Doador(a): ${product.donatorName}', style: const TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 12),
+
+                  // Botão de Ação (Tenho Interesse ou Gerenciar)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _openProductDetail(product),
+                      child: Text(isOwner ? 'Ver Detalhes' : 'Tenho Interesse'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

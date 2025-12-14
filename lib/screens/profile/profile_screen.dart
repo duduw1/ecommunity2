@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:ecommunity/screens/profile/edit_profile_screen.dart';
+import 'package:ecommunity/screens/profile/my_activity_screen.dart'; // Importe a tela
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // Alias Firebase Auth
 import 'package:flutter/material.dart';
 import 'package:ecommunity/models/user_model.dart'; // Your local User model
@@ -12,7 +14,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Variable to store the logged-in user data (from your model).
   User? _currentUser;
   bool _isLoading = true;
 
@@ -22,14 +23,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserData();
   }
 
-  /// Loads user data directly from Firestore using the Auth UID.
   Future<void> _loadUserData() async {
     try {
-      // 1. Get the current logged-in user from Firebase Auth
       final firebase_auth.User? authUser = firebase_auth.FirebaseAuth.instance.currentUser;
 
       if (authUser == null) {
-        // Not logged in
         setState(() {
           _currentUser = null;
           _isLoading = false;
@@ -37,21 +35,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
-      // 2. Fetch the user document from Firestore
       DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(authUser.uid)
           .get();
 
       if (doc.exists) {
-        // 3. Convert Firestore data to your User model
         setState(() {
           _currentUser = User.fromFirestore(doc);
           _isLoading = false;
         });
       } else {
         setState(() {
-          _currentUser = null; // User authenticated, but no profile data found
+          _currentUser = null;
           _isLoading = false;
         });
       }
@@ -63,13 +59,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// Executes logout logic.
   Future<void> _logout() async {
     try {
-      // 1. Sign out from Firebase
       await firebase_auth.FirebaseAuth.instance.signOut();
-
-      // 2. Navigate back to LoginScreen and clear the stack
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -87,22 +79,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Definir cores baseadas no tema
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final appBarColor = isDarkMode ? Theme.of(context).colorScheme.surface : Colors.white;
+    final textColor = isDarkMode ? Colors.white : Colors.black87;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Meu Perfil'),
-        backgroundColor: Colors.white,
+        backgroundColor: appBarColor,
         elevation: 1,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _currentUser == null
           ? _buildErrorView()
-          : _buildProfileView(),
+          : _buildProfileView(textColor),
     );
   }
 
-  /// Builds the main profile view.
-  Widget _buildProfileView() {
+  Widget _buildProfileView(Color textColor) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -121,6 +117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _currentUser!.name,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
+              color: textColor,
             ),
             textAlign: TextAlign.center,
           ),
@@ -138,19 +135,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // --- Action Buttons ---
           _buildActionButton(
+            icon: Icons.history,
+            text: 'Minhas Atividades',
+            textColor: textColor, // Passando a cor
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MyActivityScreen()),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildActionButton(
             icon: Icons.edit_outlined,
             text: 'Editar Perfil',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Funcionalidade de edição a ser implementada.')),
+            textColor: textColor, // Passando a cor
+            onTap: () async {
+              final bool? result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EditProfileScreen(user: _currentUser!),
+                ),
               );
+
+              if (result == true) {
+                _loadUserData();
+              }
             },
           ),
           const SizedBox(height: 12),
           _buildActionButton(
             icon: Icons.logout,
             text: 'Sair (Logout)',
-            color: Colors.red,
+            textColor: Colors.red, // Este continua vermelho
+            color: Colors.red,     // Ícone também vermelho
             onTap: _logout,
           ),
         ],
@@ -158,21 +176,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Helper widget for action buttons
   Widget _buildActionButton({
     required IconData icon,
     required String text,
     required VoidCallback onTap,
-    Color color = Colors.black87,
+    Color? color,
+    Color? textColor,
   }) {
+    // Se a cor do ícone não for passada, usa a cor do texto ou preto como fallback
+    final iconColor = color ?? textColor ?? Colors.black87;
+    final finalTextColor = textColor ?? Colors.black87;
+
     return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w500)),
+      leading: Icon(icon, color: iconColor),
+      title: Text(text, style: TextStyle(color: finalTextColor, fontWeight: FontWeight.w500)),
       onTap: onTap,
+      trailing: Icon(Icons.chevron_right, color: iconColor.withOpacity(0.5)),
     );
   }
 
-  /// Builds an error view if user data cannot be loaded.
   Widget _buildErrorView() {
     return Center(
       child: Padding(

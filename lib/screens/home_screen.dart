@@ -1,5 +1,7 @@
 import 'package:ecommunity/screens/marketplace/marketplace_screen.dart';
+import 'package:ecommunity/screens/profile/my_activity_screen.dart'; // Import MyActivityScreen
 import 'package:ecommunity/screens/profile/profile_screen.dart';
+import 'package:ecommunity/screens/social/chat_list_screen.dart'; // Import ChatListScreen
 import 'package:ecommunity/screens/social/social_feed_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
@@ -63,6 +65,12 @@ class HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _openChatList() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ChatListScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 1. Get current Firebase User directly
@@ -77,6 +85,13 @@ class HomeScreenState extends State<HomeScreen> {
         backgroundColor: Theme.of(context).colorScheme.surface,
         title: Text(_getAppBarTitle(_selectedIndex)),
         actions: [
+          // Adicionei o botão de chat aqui
+          if (isLoggedIn)
+            IconButton(
+              icon: const Icon(Icons.chat),
+              tooltip: 'Minhas Conversas',
+              onPressed: _openChatList,
+            ),
           IconButton(
             icon: const Icon(Icons.brightness_6),
             onPressed: widget.changeTheme,
@@ -131,6 +146,25 @@ class HomeScreenState extends State<HomeScreen> {
                   setState(() {
                     _selectedIndex = 3;
                   });
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history), // Ícone de Histórico
+                title: const Text("Minhas Atividades"),
+                onTap: () {
+                  Navigator.pop(context); // Fechar Drawer
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const MyActivityScreen()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.chat), // Ícone de Chat também no menu lateral
+                title: const Text("Mensagens"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openChatList();
                 },
               ),
               ListTile(

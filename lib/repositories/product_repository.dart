@@ -21,6 +21,24 @@ class ProductRepository {
     }
   }
 
+  // --- NOVA FUNÇÃO ---
+  /// Busca produtos doados por um usuário específico
+  Future<List<Product>> getProductsByDonator(String donatorId) async {
+    try {
+      final querySnapshot = await _productsCollection
+          .where('donatorId', isEqualTo: donatorId)
+          .orderBy('postedAt', descending: true)
+          .get();
+
+      return querySnapshot.docs
+          .map((doc) => Product.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      print("Erro ao buscar minhas doações: $e");
+      return [];
+    }
+  }
+
   Future<void> addProduct(Map<String, dynamic> productData) async {
     try {
       productData['postedAt'] = FieldValue.serverTimestamp();
@@ -52,17 +70,14 @@ class ProductRepository {
     }
   }
 
-  /// Exclui um produto e sua imagem associada.
   Future<void> deleteProduct(Product product) async {
     try {
       // 1. Excluir a imagem do Firebase Storage
       if (product.imageUrl.isNotEmpty) {
         try {
-          // Extrai o caminho do arquivo da URL completa
           final ref = FirebaseStorage.instance.refFromURL(product.imageUrl);
           await ref.delete();
         } on FirebaseException catch (e) {
-          // Se o arquivo não existir, não é um erro fatal para a exclusão do produto.
           print("Erro ao excluir imagem (pode não existir): $e");
         }
       }

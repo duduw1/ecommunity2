@@ -1,8 +1,9 @@
+import 'package:ecommunity/main.dart'; // Import App/HomeScreen
 import 'package:flutter/material.dart';
 import 'package:ecommunity/repositories/user_repository.dart';
 import 'package:ecommunity/models/user_model.dart';
 import 'package:ecommunity/services/auth_service.dart';
-// Renomeei para SignUpScreen para seguir a convenção de nomes de classes em Dart (CamelCase).
+
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
 
@@ -44,7 +45,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     try {
       // STEP 1: Register in Firebase Authentication FIRST
-      // We pass the raw password here, but we DON'T save it to our model
       final credential = await _authService.registerWithEmailAndPassword(
         _emailController.text.trim(),
         _passwordController.text,
@@ -64,25 +64,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
         // STEP 4: Save to Firestore
         await userRepository.addUser(newUser);
 
-        // Optional: If you use a custom SessionManager, you can use it here,
-        // but Firebase automatically manages the session for you.
-        // SessionManager().login(newUser);
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Registration successful!'), backgroundColor: Colors.green),
+            const SnackBar(content: Text('Cadastro realizado com sucesso!'), backgroundColor: Colors.green),
           );
-          // Navigate to home
-          // Navigator.of(context).pushReplacementNamed('/home');
+          
+          // Navegar para a Home (App) e remover o histórico de navegação
+           Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const App()),
+                (route) => false,
+          );
         }
       } else {
-        throw Exception("Authentication failed (User is null)");
+        throw Exception("Falha na autenticação (Usuário nulo)");
       }
 
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration failed: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Falha no cadastro: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -245,8 +245,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     const Text('Já tem uma conta?'),
                     TextButton(
                       onPressed: () {
-                        // TODO: Adicionar navegação para a tela de Login
-                        // Navigator.of(context).pushReplacementNamed('/login');
+                        // Volta para a tela de Login (pop da pilha)
+                        Navigator.of(context).pop();
                       },
                       child: const Text('Entrar'),
                     ),

@@ -1,11 +1,11 @@
 import 'package:ecommunity/repositories/user_repository.dart';
-import 'package:ecommunity/services/auth_service.dart'; // Import AuthService
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // Alias to avoid conflict with your User model
+import 'package:ecommunity/screens/auth/signup_screen.dart'; // Importe a tela de cadastro
+import 'package:ecommunity/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
 
 import '../../main.dart';
 import '../../models/user_model.dart';
-// import '../home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -222,8 +222,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Text('Não tem uma conta?'),
                     TextButton(
                       onPressed: () {
-                        // TODO: Navigate to SignUpScreen
-                        // Navigator.of(context).push(MaterialPageRoute(builder: (_) => SignUpScreen()));
+                        // Navega para a tela de cadastro
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignUpScreen()));
                       },
                       child: const Text('Cadastre-se'),
                     ),
