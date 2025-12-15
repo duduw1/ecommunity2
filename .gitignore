@@ -12,9 +12,9 @@
 .swiftpm/
 migrate_working_dir/
 
-# Secrets
-.env
-functions/.env
+# Secrets (Liberado temporariamente para apresentacao)
+# .env
+# functions/.env
 
 # IntelliJ related
 *.iml
