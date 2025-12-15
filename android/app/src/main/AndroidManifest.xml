@@ -1,8 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Permissões de Localização (Necessárias para o Mapa) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="ecommunity"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        
+        <!-- API KEY DO GOOGLE MAPS (Obrigatória para evitar crash) -->
+        <!-- Substitua "YOUR_API_KEY_HERE" pela sua chave real do Google Cloud Console -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="YOUR_API_KEY_HERE"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
