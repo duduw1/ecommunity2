@@ -33,6 +33,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     // Detecta se o tema atual é escuro
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = Theme.of(context).primaryColor;
 
     return Scaffold(
       appBar: AppBar(
@@ -99,8 +100,10 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-          Padding(
+          Container(
             padding: const EdgeInsets.all(8.0),
+            // Garante que o fundo da área de input seja opaco para não misturar com a lista
+            color: Theme.of(context).scaffoldBackgroundColor, 
             child: Row(
               children: [
                 Expanded(
@@ -108,17 +111,40 @@ class _ChatScreenState extends State<ChatScreen> {
                     controller: _messageController,
                     decoration: InputDecoration(
                       hintText: 'Digite sua mensagem...',
-                      border: const OutlineInputBorder(),
-                      // Adiciona suporte a cor no tema escuro para o campo de texto
-                      fillColor: isDarkMode ? Colors.grey[900] : null,
-                      filled: isDarkMode,
+                      // Estilo mais arredondado e limpo
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide(
+                          color: isDarkMode ? Colors.grey[700]! : Colors.grey[400]!,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide(
+                          color: isDarkMode ? Colors.grey[700]! : Colors.grey[400]!,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide(color: primaryColor),
+                      ),
+                      fillColor: isDarkMode ? Colors.grey[900] : Colors.grey[100],
+                      filled: true,
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.send),
-                  color: Theme.of(context).primaryColor,
-                  onPressed: _sendMessage,
+                const SizedBox(width: 8),
+                // Botão com fundo colorido para garantir visibilidade
+                Container(
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.send, color: Colors.white),
+                    onPressed: _sendMessage,
+                  ),
                 ),
               ],
             ),
