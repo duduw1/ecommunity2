@@ -7,6 +7,7 @@ class Event {
   final DateTime date;
   final String location;
   final String createdBy;
+  final List<String> attendees; // Lista de IDs de usuários que confirmaram presença
 
   Event({
     required this.id,
@@ -15,6 +16,7 @@ class Event {
     required this.date,
     required this.location,
     required this.createdBy,
+    required this.attendees,
   });
 
   Map<String, dynamic> toMap() {
@@ -24,6 +26,7 @@ class Event {
       'date': Timestamp.fromDate(date),
       'location': location,
       'createdBy': createdBy,
+      'attendees': attendees,
     };
   }
 
@@ -36,6 +39,7 @@ class Event {
       date: (data['date'] as Timestamp).toDate(),
       location: data['location'] ?? '',
       createdBy: data['createdBy'] ?? '',
+      attendees: List<String>.from(data['attendees'] ?? []),
     );
   }
 }

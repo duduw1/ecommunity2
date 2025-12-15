@@ -20,12 +20,13 @@ class _MyActivityScreenState extends State<MyActivityScreen> with SingleTickerPr
 
   List<Product> _myDonations = [];
   List<Product> _myInterests = [];
+  List<Product> _myReceived = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _fetchData();
   }
 
@@ -34,16 +35,17 @@ class _MyActivityScreenState extends State<MyActivityScreen> with SingleTickerPr
 
     setState(() => _isLoading = true);
     try {
-      // Busca Doações e Interesses em paralelo
       final results = await Future.wait([
-        _productRepository.getProductsByDonator(_userId!),
-        _userRepository.getUserInterests(_userId!),
+        _productRepository.getProductsByDonator(_userId),
+        _userRepository.getUserInterests(_userId),
+        _productRepository.getProductsReceivedBy(_userId!),
       ]);
 
       if (mounted) {
         setState(() {
           _myDonations = results[0];
           _myInterests = results[1];
+          _myReceived = results[2];
           _isLoading = false;
         });
       }
@@ -65,8 +67,9 @@ class _MyActivityScreenState extends State<MyActivityScreen> with SingleTickerPr
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: 'Minhas Doações', icon: Icon(Icons.volunteer_activism)),
-            Tab(text: 'Meus Interesses', icon: Icon(Icons.favorite)),
+            Tab(text: 'Doações', icon: Icon(Icons.volunteer_activism)),
+            Tab(text: 'Interesses', icon: Icon(Icons.favorite)),
+            Tab(text: 'Recebidos', icon: Icon(Icons.inventory)),
           ],
         ),
       ),
@@ -75,31 +78,37 @@ class _MyActivityScreenState extends State<MyActivityScreen> with SingleTickerPr
           : TabBarView(
               controller: _tabController,
               children: [
-                _buildProductList(_myDonations, isDonation: true),
-                _buildProductList(_myInterests, isDonation: false),
+                _buildProductList(_myDonations, type: 'donation'),
+                _buildProductList(_myInterests, type: 'interest'),
+                _buildProductList(_myReceived, type: 'received'),
               ],
             ),
     );
   }
 
-  Widget _buildProductList(List<Product> products, {required bool isDonation}) {
+  Widget _buildProductList(List<Product> products, {required String type}) {
+    String emptyMessage;
+    IconData emptyIcon;
+
+    if (type == 'donation') {
+      emptyMessage = 'Você ainda não fez doações.';
+      emptyIcon = Icons.volunteer_activism;
+    } else if (type == 'interest') {
+      emptyMessage = 'Você não tem interesses registrados.';
+      emptyIcon = Icons.favorite_border;
+    } else {
+      emptyMessage = 'Você ainda não recebeu doações.';
+      emptyIcon = Icons.inventory_2_outlined;
+    }
+
     if (products.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              isDonation ? Icons.volunteer_activism : Icons.favorite_border,
-              size: 64,
-              color: Colors.grey[300],
-            ),
+            Icon(emptyIcon, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
-            Text(
-              isDonation
-                  ? 'Você ainda não fez doações.'
-                  : 'Você não tem interesses registrados.',
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
-            ),
+            Text(emptyMessage, style: const TextStyle(fontSize: 16, color: Colors.grey)),
           ],
         ),
       );
@@ -110,6 +119,16 @@ class _MyActivityScreenState extends State<MyActivityScreen> with SingleTickerPr
       itemCount: products.length,
       itemBuilder: (context, index) {
         final product = products[index];
+        String subtitle;
+        
+        if (type == 'donation') {
+          subtitle = 'Status: ${product.status}';
+        } else if (type == 'received') {
+          subtitle = 'Doador: ${product.donatorName}';
+        } else {
+          subtitle = 'Doador: ${product.donatorName}';
+        }
+
         return Card(
           elevation: 2,
           margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
@@ -121,7 +140,7 @@ class _MyActivityScreenState extends State<MyActivityScreen> with SingleTickerPr
                   : Container(width: 50, height: 50, color: Colors.grey[300], child: const Icon(Icons.image)),
             ),
             title: Text(product.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(isDonation ? product.status : 'Doador: ${product.donatorName}'),
+            subtitle: Text(subtitle),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
               Navigator.push(

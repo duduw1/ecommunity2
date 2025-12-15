@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecommunity/models/user_model.dart';
 import 'package:ecommunity/models/product_model.dart';
+import 'package:flutter/foundation.dart'; // Para debugPrint
 
 class UserRepository {
   final CollectionReference _usersCollection = FirebaseFirestore.instance.collection('users');
@@ -9,8 +10,8 @@ class UserRepository {
     try {
       await _usersCollection.doc(user.id).set(user.toMap());
     } catch (e) {
-      print("Error adding user to Firestore: $e");
-      throw e;
+      debugPrint("Error adding user to Firestore: $e");
+      rethrow; // Melhor prática: rethrow preserva o stack trace original
     }
   }
 
@@ -22,7 +23,7 @@ class UserRepository {
       }
       return null;
     } on FirebaseException catch (e) {
-      print("Firebase Error getting user by ID: ${e.message}");
+      debugPrint("Firebase Error getting user by ID: ${e.message}");
       return null;
     }
   }
@@ -39,9 +40,36 @@ class UserRepository {
       }
       return null;
     } on FirebaseException catch (e) {
-      print("Firebase Error getting user by email: ${e.message}");
+      debugPrint("Firebase Error getting user by email: ${e.message}");
       return null;
     }
+  }
+
+  /// Busca lista de usuários por seus IDs (com suporte a chunks de 10)
+  Future<List<User>> getUsersByIds(List<String> userIds) async {
+    if (userIds.isEmpty) return [];
+    
+    List<User> users = [];
+
+    // Firestore 'whereIn' suporta no máximo 10 valores
+    for (var i = 0; i < userIds.length; i += 10) {
+      var end = (i + 10 < userIds.length) ? i + 10 : userIds.length;
+      var chunk = userIds.sublist(i, end);
+
+      try {
+        final querySnapshot = await _usersCollection
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+
+        users.addAll(
+            querySnapshot.docs.map((doc) => User.fromFirestore(doc)).toList()
+        );
+      } catch (e) {
+        debugPrint("Error fetching users chunk: $e");
+      }
+    }
+
+    return users;
   }
 
   Future<void> updateUser(User user) async {
@@ -52,10 +80,21 @@ class UserRepository {
     await _usersCollection.doc(userId).delete();
   }
 
-  // --- FUNÇÕES DE INTERESSE (ATUALIZADAS) ---
+  // --- FUNÇÕES DE PONTOS (NOVO) ---
+  
+  /// Adiciona pontos ao usuário
+  Future<void> addPoints(String userId, int pointsToAdd) async {
+    try {
+      await _usersCollection.doc(userId).update({
+        'points': FieldValue.increment(pointsToAdd),
+      });
+    } catch (e) {
+      debugPrint("Erro ao adicionar pontos: $e");
+    }
+  }
 
-  /// Alterna o interesse: Se não existe, adiciona. Se existe, remove.
-  /// Retorna TRUE se ficou interessado, FALSE se removeu o interesse.
+  // --- FUNÇÕES DE INTERESSE ---
+
   Future<bool> toggleInterest(String userId, Product product) async {
     try {
       final docRef = _usersCollection
@@ -66,24 +105,21 @@ class UserRepository {
       final docSnapshot = await docRef.get();
 
       if (docSnapshot.exists) {
-        // Já tem interesse -> Remover
         await docRef.delete();
-        return false; // Não está mais interessado
+        return false; 
       } else {
-        // Não tem interesse -> Adicionar
         await docRef.set({
           ...product.toMap(),
           'interestedAt': FieldValue.serverTimestamp(),
         });
-        return true; // Agora está interessado
+        return true; 
       }
     } catch (e) {
-      print("Erro ao alternar interesse: $e");
+      debugPrint("Erro ao alternar interesse: $e");
       throw Exception('Erro ao atualizar interesse.');
     }
   }
 
-  /// Verifica se o usuário já tem interesse em um produto específico
   Future<bool> hasInterest(String userId, String productId) async {
     try {
       final doc = await _usersCollection
@@ -97,7 +133,6 @@ class UserRepository {
     }
   }
 
-  /// Busca a lista de produtos que o usuário demonstrou interesse
   Future<List<Product>> getUserInterests(String userId) async {
     try {
       final querySnapshot = await _usersCollection
@@ -110,8 +145,48 @@ class UserRepository {
           .map((doc) => Product.fromFirestore(doc))
           .toList();
     } catch (e) {
-      print("Erro ao buscar interesses: $e");
+      debugPrint("Erro ao buscar interesses: $e");
       return [];
     }
+  }
+
+  // --- FUNÇÕES DE SEGUIR ---
+
+  Future<bool> toggleFollow(String currentUserId, String targetUserId) async {
+    if (currentUserId == targetUserId) return false;
+
+    final currentUserRef = _usersCollection.doc(currentUserId);
+    final targetUserRef = _usersCollection.doc(targetUserId);
+
+    return FirebaseFirestore.instance.runTransaction((transaction) async {
+      final currentUserSnapshot = await transaction.get(currentUserRef);
+
+      if (!currentUserSnapshot.exists) {
+        throw Exception("Usuário atual não encontrado.");
+      }
+
+      final currentUserData = currentUserSnapshot.data() as Map<String, dynamic>;
+      final followingList = List<String>.from(currentUserData['following'] ?? []);
+      
+      final isFollowing = followingList.contains(targetUserId);
+
+      if (isFollowing) {
+        transaction.update(currentUserRef, {
+          'following': FieldValue.arrayRemove([targetUserId])
+        });
+        transaction.update(targetUserRef, {
+          'followers': FieldValue.arrayRemove([currentUserId])
+        });
+        return false;
+      } else {
+        transaction.update(currentUserRef, {
+          'following': FieldValue.arrayUnion([targetUserId])
+        });
+        transaction.update(targetUserRef, {
+          'followers': FieldValue.arrayUnion([currentUserId])
+        });
+        return true;
+      }
+    });
   }
 }

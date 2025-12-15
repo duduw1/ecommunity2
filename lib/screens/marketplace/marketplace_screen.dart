@@ -1,12 +1,12 @@
 import 'package:ecommunity/models/product_model.dart';
 import 'package:ecommunity/repositories/product_repository.dart';
-import 'package:ecommunity/repositories/user_repository.dart'; // Importe o User Repository
+import 'package:ecommunity/repositories/user_repository.dart';
 import 'package:ecommunity/screens/marketplace/edit_product_screen.dart';
 import 'package:ecommunity/screens/marketplace/product_detail_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'add_product_Screen.dart';
+import 'add_product_screen.dart';
 
 class MarketplaceScreen extends StatefulWidget {
   const MarketplaceScreen({super.key});
@@ -17,12 +17,12 @@ class MarketplaceScreen extends StatefulWidget {
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
   final ProductRepository _repository = ProductRepository();
-  final UserRepository _userRepository = UserRepository(); // Instância do UserRepo
+  final UserRepository _userRepository = UserRepository();
 
   bool _isLoading = true;
   List<Product> _products = [];
-  List<Product> _filteredProducts = []; // Para a pesquisa
-  Set<String> _interestedProductIds = {}; // Armazena IDs dos produtos que tenho interesse
+  List<Product> _filteredProducts = [];
+  Set<String> _interestedProductIds = {};
 
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
@@ -47,23 +47,23 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       setState(() { _isLoading = true; });
     }
     try {
-      // 1. Busca os produtos disponíveis
       final fetchedProducts = await _repository.getAvailableProducts();
       
-      // 2. Se logado, busca meus interesses para pintar os botões corretamente
       if (_currentUserId != null) {
         final myInterests = await _userRepository.getUserInterests(_currentUserId!);
         _interestedProductIds = myInterests.map((p) => p.id).toSet();
       }
 
-      setState(() {
-        _products = fetchedProducts;
-        _filteredProducts = fetchedProducts;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() { _isLoading = false; });
       if (mounted) {
+        setState(() {
+          _products = fetchedProducts;
+          _filteredProducts = fetchedProducts;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() { _isLoading = false; });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar produtos: $e')),
         );
@@ -98,7 +98,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           SnackBar(content: Text('"${product.title}" foi excluído.')),
         );
       }
-      _fetchProducts(); // Atualiza a lista
+      _fetchProducts();
     } catch (e) {
       if(mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -108,26 +108,149 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     }
   }
 
-  void _showDeleteConfirmationDialog(Product product) {
+  void _showManageProductDialog(Product product) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirmar Exclusão'),
-          content: Text('Tem certeza de que deseja excluir "${product.title}"?'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Não'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            TextButton(
-              child: const Text('Sim, Excluir'),
-              onPressed: () {
-                Navigator.of(context).pop();
-                _deleteProduct(product);
-              },
-            ),
-          ],
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Gerenciar Produto'),
+        content: const Text('O item foi doado ou você deseja apenas excluí-lo?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _deleteProduct(product);
+            },
+            child: const Text('Excluir', style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _showSelectReceiverDialog(product);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            child: const Text('Marcar como Doado'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSelectReceiverDialog(Product product) {
+    final emailController = TextEditingController();
+    int selectedRating = 5;
+
+    // Guardar o ScaffoldMessenger do contexto PAI para usar depois que o dialog fechar
+    final messenger = ScaffoldMessenger.of(context);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Quem recebeu a doação?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Digite o e-mail da pessoa que recebeu o item.'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'E-mail do recebedor',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.email),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text("Avalie o recebedor:", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      return IconButton(
+                        icon: Icon(
+                          index < selectedRating ? Icons.star : Icons.star_border,
+                          color: Colors.amber,
+                          size: 32,
+                        ),
+                        onPressed: () {
+                          setStateDialog(() {
+                            selectedRating = index + 1;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                  Center(child: Text("$selectedRating/5 estrelas", style: TextStyle(color: Colors.grey[600]))),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+                ElevatedButton(
+                  onPressed: () async {
+                    // Normaliza para lowercase para facilitar a busca
+                    final email = emailController.text.trim().toLowerCase(); 
+                    if (email.isEmpty) {
+                      messenger.showSnackBar(const SnackBar(content: Text('Digite um email.')));
+                      return;
+                    }
+
+                    Navigator.pop(dialogContext); // Fecha dialog
+                    messenger.showSnackBar(const SnackBar(content: Text('Processando doação...')));
+
+                    try {
+                      // Busca usuário pelo email (case sensitive pode ser problema, então tentamos tratar)
+                      // O ideal é que todos emails no banco estejam salvos padronizados.
+                      // Aqui vamos tentar buscar exatamente como digitado (já com toLowerCase)
+                      
+                      // Nota: Se o banco tem emails com maiúsculas, 'getUserByEmail' pode falhar se usarmos lowercase aqui.
+                      // Vou tentar buscar primeiro com lowercase. Se falhar, poderia tentar original, mas vamos assumir padrão.
+                      
+                      final user = await _userRepository.getUserByEmail(email);
+                      
+                      if (user == null) {
+                        messenger.showSnackBar(const SnackBar(content: Text('Usuário não encontrado com este e-mail. Verifique a grafia.')));
+                        return;
+                      }
+
+                      if (user.id == product.donatorId) {
+                        messenger.showSnackBar(const SnackBar(content: Text('Você não pode doar para si mesmo!')));
+                        return;
+                      }
+
+                      // Marca como doado
+                      await _repository.markAsDonated(
+                        productId: product.id, 
+                        receiverId: user.id, 
+                        donatorId: product.donatorId,
+                        donatorName: product.donatorName,
+                        ratingToReceiver: selectedRating,
+                      );
+                      
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Doação registrada! Avaliação enviada e +50 pontos ganhos! 🎉'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      
+                      _fetchProducts(); // Atualiza lista
+                    } catch (e) {
+                      messenger.showSnackBar(SnackBar(content: Text('Erro: $e')));
+                    }
+                  },
+                  child: const Text('Confirmar Doação'),
+                ),
+              ],
+            );
+          }
         );
       },
     );
@@ -137,7 +260,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => ProductDetailScreen(product: product)),
-    ).then((_) => _fetchProducts()); // Recarrega ao voltar para atualizar interesses
+    ).then((_) => _fetchProducts());
   }
 
   @override
@@ -158,7 +281,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     );
   }
 
-  AppBar _buildAppBar() {
+  PreferredSizeWidget _buildAppBar() {
     if (_isSearching) {
       return AppBar(
         leading: IconButton(
@@ -224,7 +347,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   }
 
   Widget _buildProductCard(Product product) {
-    // Verifica se o usuário atual é o dono do produto
     bool isOwner = _currentUserId == product.donatorId;
     bool isInterested = _interestedProductIds.contains(product.id);
 
@@ -233,7 +355,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () => _openProductDetail(product), // Clicar no card abre detalhes
+        onTap: () => _openProductDetail(product),
         borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,7 +383,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      // Mostra ícones de edição/exclusão APENAS se for o dono
                       if (isOwner)
                         Row(
                           children: [
@@ -275,7 +396,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _showDeleteConfirmationDialog(product),
+                              onPressed: () => _showManageProductDialog(product),
                             ),
                           ],
                         ),
@@ -285,7 +406,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                   Text('Doador(a): ${product.donatorName}', style: const TextStyle(color: Colors.grey)),
                   const SizedBox(height: 12),
 
-                  // Botão de Ação (Tenho Interesse ou Gerenciar)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

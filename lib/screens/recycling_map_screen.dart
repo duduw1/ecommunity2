@@ -1,119 +1,117 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-class RecyclingMapScreen extends StatelessWidget {
+class RecyclingMapScreen extends StatefulWidget {
   const RecyclingMapScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<RecyclingMapScreen> createState() => _RecyclingMapScreenState();
+}
+
+class _RecyclingMapScreenState extends State<RecyclingMapScreen> {
+  late GoogleMapController mapController;
+
+  // Posição inicial (Ex: Centro de São Paulo - ajuste conforme necessário)
+  final LatLng _center = const LatLng(-23.550520, -46.633308);
+
+  // Marcadores dos pontos de coleta
+  final Set<Marker> _markers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMarkers();
+  }
+
+  void _loadMarkers() {
     // Dados simulados de pontos de coleta
-    final List<Map<String, String>> collectionPoints = [
+    final List<Map<String, dynamic>> collectionPoints = [
       {
+        'id': '1',
         'name': 'Ecoponto Central',
-        'address': 'Av. das Flores, 123',
-        'types': 'Vidro, Papel, Plástico',
-        'distance': '1.2 km'
+        'lat': -23.550520,
+        'lng': -46.633308,
+        'types': 'Vidro, Papel',
       },
       {
+        'id': '2',
         'name': 'Cooperativa Recicla+',
-        'address': 'Rua da Sustentabilidade, 45',
-        'types': 'Eletrônicos, Metal',
-        'distance': '2.5 km'
+        'lat': -23.555520,
+        'lng': -46.638308,
+        'types': 'Eletrônicos',
       },
       {
-        'name': 'Ponto Verde Supermercado',
-        'address': 'Av. Brasil, 1000',
-        'types': 'Óleo de Cozinha, Pilhas',
-        'distance': '3.0 km'
-      },
-      {
-        'name': 'Estação de Reciclagem Sul',
-        'address': 'Rua do Porto, 88',
-        'types': 'Móveis, Entulho',
-        'distance': '5.4 km'
+        'id': '3',
+        'name': 'Ponto Verde',
+        'lat': -23.545520,
+        'lng': -46.628308,
+        'types': 'Óleo, Pilhas',
       },
     ];
 
+    for (var point in collectionPoints) {
+      _markers.add(
+        Marker(
+          markerId: MarkerId(point['id']),
+          position: LatLng(point['lat'], point['lng']),
+          infoWindow: InfoWindow(
+            title: point['name'],
+            snippet: point['types'],
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen), // Marcador verde
+        ),
+      );
+    }
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    mapController = controller;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Pontos de Coleta")),
-      body: Column(
+      body: Stack(
         children: [
-          // Simulação da Área do Mapa (Placeholder)
-          Container(
-            height: 250,
-            width: double.infinity,
-            color: Colors.grey[300],
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const Icon(Icons.map, size: 80, color: Colors.grey),
-                Positioned(
-                  bottom: 20,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      "Integração com Mapbox requer API Key",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                )
-              ],
+          GoogleMap(
+            onMapCreated: _onMapCreated,
+            initialCameraPosition: CameraPosition(
+              target: _center,
+              zoom: 14.0,
             ),
+            markers: _markers,
+            myLocationEnabled: true, // Requer permissão de localização no AndroidManifest
+            myLocationButtonEnabled: true,
           ),
           
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: collectionPoints.length,
-              itemBuilder: (context, index) {
-                final point = collectionPoints[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: Colors.green,
-                      child: Icon(Icons.recycle, color: Colors.white),
+          // Legenda flutuante
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.location_on, color: Colors.green),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Toque nos marcadores verdes para ver detalhes do ponto de coleta.",
+                      style: TextStyle(fontSize: 14),
                     ),
-                    title: Text(point['name']!, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(point['address']!),
-                        const SizedBox(height: 4),
-                        Text(
-                          point['types']!,
-                          style: TextStyle(color: Colors.green[700], fontSize: 12, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.location_on, color: Colors.blue, size: 20),
-                        Text(point['distance']!, style: const TextStyle(fontSize: 12)),
-                      ],
-                    ),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Navegar para: ${point['name']}')),
-                      );
-                    },
                   ),
-                );
-              },
+                ],
+              ),
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // Ação futura para abrir mapa externo
-        },
-        label: const Text("Abrir no GPS"),
-        icon: const Icon(Icons.map_outlined),
       ),
     );
   }

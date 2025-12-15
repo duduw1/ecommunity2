@@ -1,10 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecommunity/models/user_model.dart';
+import 'package:ecommunity/screens/auth/login_screen.dart';
 import 'package:ecommunity/screens/profile/edit_profile_screen.dart';
-import 'package:ecommunity/screens/profile/my_activity_screen.dart'; // Importe a tela
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // Alias Firebase Auth
+import 'package:ecommunity/screens/profile/my_activity_screen.dart';
+import 'package:ecommunity/screens/profile/user_list_screen.dart';
+import 'package:ecommunity/screens/profile/user_reviews_screen.dart'; // Import da tela de reviews
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
-import 'package:ecommunity/models/user_model.dart'; // Your local User model
-import 'package:ecommunity/screens/auth/login_screen.dart'; // Import your LoginScreen
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -52,7 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       }
     } catch (e) {
-      print("Error loading profile: $e");
+      debugPrint("Error loading profile: $e");
       setState(() {
         _isLoading = false;
       });
@@ -79,100 +81,235 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Definir cores baseadas no tema
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final appBarColor = isDarkMode ? Theme.of(context).colorScheme.surface : Colors.white;
     final textColor = isDarkMode ? Colors.white : Colors.black87;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Meu Perfil'),
-        backgroundColor: appBarColor,
-        elevation: 1,
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _currentUser == null
+            ? _buildErrorView()
+            : _buildProfileView(textColor, isDarkMode),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _currentUser == null
-          ? _buildErrorView()
-          : _buildProfileView(textColor),
     );
   }
 
-  Widget _buildProfileView(Color textColor) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          CircleAvatar(
-            radius: 60,
-            backgroundColor: Colors.green,
-            child: Text(
-              _currentUser!.name.isNotEmpty ? _currentUser!.name[0].toUpperCase() : '?',
-              style: const TextStyle(fontSize: 40, color: Colors.white),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _currentUser!.name,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _currentUser!.email,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.grey[600],
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          const Divider(),
-          const SizedBox(height: 16),
+  Widget _buildProfileView(Color textColor, bool isDarkMode) {
+    final isBusiness = _currentUser!.accountType == 'business';
 
-          // --- Action Buttons ---
-          _buildActionButton(
-            icon: Icons.history,
-            text: 'Minhas Atividades',
-            textColor: textColor, // Passando a cor
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const MyActivityScreen()),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildActionButton(
-            icon: Icons.edit_outlined,
-            text: 'Editar Perfil',
-            textColor: textColor, // Passando a cor
-            onTap: () async {
-              final bool? result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EditProfileScreen(user: _currentUser!),
+    return RefreshIndicator(
+      onRefresh: _loadUserData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Avatar e Tipo de Conta
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: Colors.green,
+                  child: Text(
+                    _currentUser!.name.isNotEmpty ? _currentUser!.name[0].toUpperCase() : '?',
+                    style: const TextStyle(fontSize: 40, color: Colors.white),
+                  ),
                 ),
-              );
+                if (isBusiness)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.store, color: Colors.white, size: 20),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Nome e Email
+            Text(
+              _currentUser!.name,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              _currentUser!.email,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
 
-              if (result == true) {
-                _loadUserData();
-              }
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildActionButton(
-            icon: Icons.logout,
-            text: 'Sair (Logout)',
-            textColor: Colors.red, // Este continua vermelho
-            color: Colors.red,     // Ícone também vermelho
-            onTap: _logout,
-          ),
-        ],
+            // Rating / Reputação (Clicável)
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => UserReviewsScreen(
+                      userId: _currentUser!.id, 
+                      userName: _currentUser!.name
+                    ),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.star, color: Colors.amber, size: 20),
+                    const SizedBox(width: 4),
+                    Text(
+                      "${_currentUser!.rating.toStringAsFixed(1)} (${_currentUser!.ratingCount} avaliações)",
+                      style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.chevron_right, size: 16, color: Colors.grey[400]),
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+
+            // Stats Row (Pontos, Seguidores, Seguindo)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildStatItem("Pontos", _currentUser!.points.toString(), Colors.green),
+                
+                // Botão Seguidores
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => UserListScreen(
+                          title: "Seguidores",
+                          userIds: _currentUser!.followers,
+                        ),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: _buildStatItem("Seguidores", _currentUser!.followers.length.toString(), textColor),
+                  ),
+                ),
+
+                // Botão Seguindo
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => UserListScreen(
+                          title: "Seguindo",
+                          userIds: _currentUser!.following,
+                        ),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: _buildStatItem("Seguindo", _currentUser!.following.length.toString(), textColor),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 32),
+            const Divider(),
+            const SizedBox(height: 16),
+
+            // Menus
+            _buildActionButton(
+              icon: Icons.history,
+              text: 'Minhas Atividades',
+              textColor: textColor,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const MyActivityScreen()),
+                );
+              },
+            ),
+            if (isBusiness) // Exemplo: Menu extra para empresas
+               _buildActionButton(
+                icon: Icons.storefront,
+                text: 'Gerenciar Loja',
+                textColor: textColor,
+                onTap: () {
+                  // Navegar para gerenciamento da loja
+                },
+              ),
+            const SizedBox(height: 12),
+            _buildActionButton(
+              icon: Icons.edit_outlined,
+              text: 'Editar Perfil',
+              textColor: textColor,
+              onTap: () async {
+                final bool? result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EditProfileScreen(user: _currentUser!),
+                  ),
+                );
+                if (result == true) {
+                  _loadUserData();
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildActionButton(
+              icon: Icons.logout,
+              text: 'Sair (Logout)',
+              textColor: Colors.red,
+              color: Colors.red,
+              onTap: _logout,
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 
@@ -183,7 +320,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Color? color,
     Color? textColor,
   }) {
-    // Se a cor do ícone não for passada, usa a cor do texto ou preto como fallback
     final iconColor = color ?? textColor ?? Colors.black87;
     final finalTextColor = textColor ?? Colors.black87;
 

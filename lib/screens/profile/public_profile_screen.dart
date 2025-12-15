@@ -1,6 +1,7 @@
 import 'package:ecommunity/models/user_model.dart';
 import 'package:ecommunity/repositories/user_repository.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ecommunity/screens/profile/user_reviews_screen.dart'; // Import da tela de reviews
+import 'package:firebase_auth/firebase_auth.dart' as auth; // Alias para evitar conflito
 import 'package:flutter/material.dart';
 
 class PublicProfileScreen extends StatefulWidget {
@@ -14,9 +15,9 @@ class PublicProfileScreen extends StatefulWidget {
 
 class _PublicProfileScreenState extends State<PublicProfileScreen> {
   final UserRepository _userRepository = UserRepository();
-  final String _currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+  final String _currentUserId = auth.FirebaseAuth.instance.currentUser?.uid ?? '';
   
-  User? _user;
+  User? _user; // Refere-se a ecommunity/models/user_model.dart
   bool _isLoading = true;
   bool _isFollowing = false;
   bool _isMe = false;
@@ -35,9 +36,6 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
       final user = await _userRepository.getUserById(widget.userId);
       
-      // Verifica se eu sigo esse usuário
-      // Para isso, precisamos pegar meus dados também (ou confiar no array 'followers' do alvo)
-      // Vamos confiar no array 'followers' do alvo que acabamos de baixar
       bool isFollowing = false;
       if (user != null && _currentUserId.isNotEmpty) {
         isFollowing = user.followers.contains(_currentUserId);
@@ -51,7 +49,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         });
       }
     } catch (e) {
-      print("Erro ao carregar perfil público: $e");
+      debugPrint("Erro ao carregar perfil público: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -138,8 +136,42 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             _user!.name,
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
-          if (isBusiness)
+          
+          // Rating / Reputação (Clicável)
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context, 
+                MaterialPageRoute(
+                  builder: (_) => UserReviewsScreen(userId: _user!.id, userName: _user!.name)
+                )
+              );
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.star, color: Colors.amber, size: 20),
+                  const SizedBox(width: 4),
+                  Text(
+                    "${_user!.rating.toStringAsFixed(1)} (${_user!.ratingCount} avaliações)",
+                    style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.chevron_right, size: 16, color: Colors.grey[400]),
+                ],
+              ),
+            ),
+          ),
+
+          if (isBusiness) ...[
+            const SizedBox(height: 8),
             const Chip(label: Text("Conta Empresarial"), backgroundColor: Colors.blue, labelStyle: TextStyle(color: Colors.white)),
+          ],
           
           const SizedBox(height: 24),
 

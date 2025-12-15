@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecommunity/models/chat_model.dart';
+import 'package:flutter/foundation.dart'; // Para debugPrint
 
 class ChatRepository {
   final CollectionReference _chatsCollection =
@@ -36,7 +37,7 @@ class ChatRepository {
 
       return newChatDoc.id;
     } catch (e) {
-      print("Erro ao criar/buscar chat: $e");
+      debugPrint("Erro ao criar/buscar chat: $e");
       throw Exception('Falha ao iniciar conversa.');
     }
   }
@@ -94,7 +95,7 @@ class ChatRepository {
       // 2. Excluir o documento do chat
       await _chatsCollection.doc(chatId).delete();
     } catch (e) {
-      print("Erro ao excluir chat: $e");
+      debugPrint("Erro ao excluir chat: $e");
       throw Exception('Falha ao excluir conversa.');
     }
   }

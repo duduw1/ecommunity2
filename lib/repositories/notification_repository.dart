@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecommunity/models/notification_model.dart';
+import 'package:flutter/foundation.dart'; // Para debugPrint
 
 class NotificationRepository {
   final CollectionReference _notificationsCollection =
@@ -24,7 +25,7 @@ class NotificationRepository {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print("Erro ao enviar notificação: $e");
+      debugPrint("Erro ao enviar notificação: $e");
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecommunity/models/post_model.dart';
 import 'package:ecommunity/repositories/notification_repository.dart';
+import 'package:flutter/foundation.dart'; // Import para debugPrint
 
 class PostRepository {
   final CollectionReference _postsCollection = FirebaseFirestore.instance.collection('posts');
@@ -24,8 +25,8 @@ class PostRepository {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print("Erro ao adicionar post: $e");
-      throw e;
+      debugPrint("Erro ao adicionar post: $e");
+      rethrow;
     }
   }
 
@@ -48,7 +49,7 @@ class PostRepository {
 
       return querySnapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
     } catch (e) {
-      print("Erro ao buscar todos os posts: $e");
+      debugPrint("Erro ao buscar todos os posts: $e");
       return [];
     }
   }
@@ -141,7 +142,7 @@ class PostRepository {
 
       return querySnapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
     } catch (e) {
-      print("Erro ao buscar posts curtidos: $e");
+      debugPrint("Erro ao buscar posts curtidos: $e");
       return [];
     }
   }

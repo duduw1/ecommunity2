@@ -20,7 +20,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
 
-  XFile? _imageFile;
   Uint8List? _imageBytes;
   String? _selectedCategory;
   bool _isLoading = false;
@@ -46,12 +45,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
       if (selectedImage != null) {
         final bytes = await selectedImage.readAsBytes();
         setState(() {
-          _imageFile = selectedImage;
           _imageBytes = bytes;
         });
       }
     } catch (e) {
-      print("Error picking image: $e");
+      debugPrint("Error picking image: $e");
     }
   }
 
@@ -120,7 +118,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         Navigator.of(context).pop();
       }
     } catch (e) {
-      print('Erro ao submeter o formulário: $e');
+      debugPrint('Erro ao submeter o formulário: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao adicionar produto: $e')),
@@ -202,7 +200,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
               // Category
               DropdownButtonFormField<String>(
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 decoration: const InputDecoration(border: OutlineInputBorder()),
                 hint: const Text('Selecione uma Categoria'),
                 items: _categories.map((String category) {

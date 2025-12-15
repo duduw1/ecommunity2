@@ -1,5 +1,6 @@
 import 'package:ecommunity/models/post_model.dart';
 import 'package:ecommunity/repositories/post_repository.dart';
+import 'package:ecommunity/screens/profile/public_profile_screen.dart'; // Import
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -79,6 +80,13 @@ class _PostCardState extends State<PostCard> {
     );
   }
 
+  void _openUserProfile() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => PublicProfileScreen(userId: widget.post.userId)),
+    );
+  }
+
   String _formatDateTime(Timestamp timestamp) {
     DateTime date = timestamp.toDate();
     return "${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
@@ -95,33 +103,38 @@ class _PostCardState extends State<PostCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.green[100],
-                  child: Text(
-                    widget.post.userName.isNotEmpty ? widget.post.userName[0].toUpperCase() : '?',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[800]),
+            // Header clicável para abrir perfil
+            InkWell(
+              onTap: _openUserProfile,
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.green[100],
+                    child: Text(
+                      widget.post.userName.isNotEmpty ? widget.post.userName[0].toUpperCase() : '?',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[800]),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12.0),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.post.userName,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      Text(
-                        _formatDateTime(widget.post.createdAt),
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      ),
-                    ],
+                  const SizedBox(width: 12.0),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.post.userName,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        Text(
+                          _formatDateTime(widget.post.createdAt),
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            
             const SizedBox(height: 12.0),
             Text(
               widget.post.text,
@@ -223,7 +236,6 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     setState(() => _isSending = true);
 
     try {
-      // Busca o nome do usuário no Firestore antes de comentar
       String userName = 'Usuário';
       try {
         final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUserId).get();
@@ -284,9 +296,14 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                   itemBuilder: (context, index) {
                     final comment = comments[index];
                     return ListTile(
-                      leading: CircleAvatar(
-                        radius: 16,
-                        child: Text(comment.userName.isNotEmpty ? comment.userName[0].toUpperCase() : '?'),
+                      leading: InkWell(
+                         onTap: () {
+                           Navigator.push(context, MaterialPageRoute(builder: (c) => PublicProfileScreen(userId: comment.userId)));
+                         },
+                         child: CircleAvatar(
+                          radius: 16,
+                          child: Text(comment.userName.isNotEmpty ? comment.userName[0].toUpperCase() : '?'),
+                        ),
                       ),
                       title: Text(comment.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                       subtitle: Text(comment.text),

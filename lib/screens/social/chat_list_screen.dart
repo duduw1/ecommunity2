@@ -1,5 +1,6 @@
 import 'package:ecommunity/models/chat_model.dart';
 import 'package:ecommunity/repositories/chat_repository.dart';
+import 'package:ecommunity/screens/profile/public_profile_screen.dart'; // Import
 import 'package:ecommunity/screens/social/chat_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -31,8 +32,6 @@ class ChatListScreen extends StatelessWidget {
             itemCount: chats.length,
             itemBuilder: (context, index) {
               final chat = chats[index];
-              
-              // Descobre quem é o "outro" participante
               final otherUserId = chat.participants.firstWhere((id) => id != currentUserId, orElse: () => 'Desconhecido');
               final otherUserName = chat.participantNames[otherUserId] ?? "Usuário";
 
@@ -79,7 +78,12 @@ class ChatListScreen extends StatelessWidget {
                   }
                 },
                 child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.person)),
+                  leading: InkWell( // Clicar no avatar abre perfil
+                    onTap: () {
+                       Navigator.push(context, MaterialPageRoute(builder: (c) => PublicProfileScreen(userId: otherUserId)));
+                    },
+                    child: const CircleAvatar(child: Icon(Icons.person)),
+                  ),
                   title: Text(otherUserName, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text(
                     chat.lastMessage.isNotEmpty ? chat.lastMessage : "Inicie a conversa...",

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' show Color, Colors;
 
 class AppColors {
   // Greens
@@ -25,7 +25,7 @@ class AppColors {
   static const Color cardGreen = Color(0xFFE8F8F5);
 
   // Deprecated colors (from the old palette)
-  static const Color secondary_old = Color.fromRGBO(158, 26, 26, 1);
-  static const Color background_old = Color.fromRGBO(23, 23, 23, 1);
-  static const Color lightBackground_old = Color.fromRGBO(232, 232, 232, 1);
+  static const Color secondaryOld = Color.fromRGBO(158, 26, 26, 1);
+  static const Color backgroundOld = Color.fromRGBO(23, 23, 23, 1);
+  static const Color lightBackgroundOld = Color.fromRGBO(232, 232, 232, 1);
 }

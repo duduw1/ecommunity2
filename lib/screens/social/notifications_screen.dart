@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecommunity/models/notification_model.dart';
 import 'package:ecommunity/repositories/notification_repository.dart';
+import 'package:ecommunity/repositories/product_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -9,7 +10,6 @@ class NotificationsScreen extends StatelessWidget {
 
   String _formatDateTime(Timestamp timestamp) {
     DateTime date = timestamp.toDate();
-    // Formato simples: "dd/MM HH:mm"
     return "${date.day}/${date.month} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
   }
 
@@ -21,6 +21,7 @@ class NotificationsScreen extends StatelessWidget {
     }
 
     final NotificationRepository repository = NotificationRepository();
+    final ProductRepository productRepository = ProductRepository();
 
     return Scaffold(
       appBar: AppBar(title: const Text("Notificações")),
@@ -49,7 +50,7 @@ class NotificationsScreen extends StatelessWidget {
             itemCount: notifications.length,
             itemBuilder: (context, index) {
               final notification = notifications[index];
-              return _buildNotificationItem(context, notification, repository);
+              return _buildNotificationItem(context, notification, repository, productRepository);
             },
           );
         },
@@ -58,7 +59,7 @@ class NotificationsScreen extends StatelessWidget {
   }
 
   Widget _buildNotificationItem(
-      BuildContext context, AppNotification notification, NotificationRepository repo) {
+      BuildContext context, AppNotification notification, NotificationRepository repo, ProductRepository productRepo) {
     
     IconData icon;
     Color iconColor;
@@ -80,6 +81,10 @@ class NotificationsScreen extends StatelessWidget {
         icon = Icons.volunteer_activism;
         iconColor = Colors.amber;
         break;
+      case 'rate_item': // Novo tipo
+        icon = Icons.star;
+        iconColor = Colors.orange;
+        break;
       default:
         icon = Icons.notifications;
         iconColor = Colors.grey;
@@ -89,10 +94,10 @@ class NotificationsScreen extends StatelessWidget {
       key: Key(notification.id),
       background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white)),
       onDismissed: (direction) {
-        // Implementar delete se necessário no repo
+        // Implementar delete se necessário
       },
       child: Container(
-        color: notification.isRead ? null : Colors.blue.withOpacity(0.05), // Destaque para não lidas
+        color: notification.isRead ? null : Colors.blue.withOpacity(0.05),
         child: ListTile(
           leading: CircleAvatar(
             backgroundColor: iconColor.withOpacity(0.2),
@@ -113,10 +118,86 @@ class NotificationsScreen extends StatelessWidget {
           ),
           onTap: () {
             repo.markAsRead(notification.id);
-            // Aqui você poderia navegar para o Post ou Chat relacionado usando notification.relatedId
+            
+            if (notification.type == 'rate_item') {
+               _showRateItemDialog(context, notification, productRepo);
+            }
+            // Outras navegações...
           },
         ),
       ),
+    );
+  }
+
+  void _showRateItemDialog(BuildContext context, AppNotification notification, ProductRepository productRepo) {
+    int rating = 5;
+    final commentController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Avaliar Item Recebido'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Como estava o estado do item que você recebeu?'),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        return IconButton(
+                          icon: Icon(
+                            index < rating ? Icons.star : Icons.star_border,
+                            color: Colors.amber,
+                            size: 32,
+                          ),
+                          onPressed: () {
+                            setStateDialog(() => rating = index + 1);
+                          },
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: commentController,
+                      decoration: const InputDecoration(
+                        labelText: 'Comentário (opcional)',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    try {
+                      await productRepo.rateItem(notification.relatedId, rating, commentController.text);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Obrigado pela avaliação!'), backgroundColor: Colors.green),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e')));
+                      }
+                    }
+                  },
+                  child: const Text('Enviar Avaliação'),
+                ),
+              ],
+            );
+          }
+        );
+      },
     );
   }
 }

@@ -1,5 +1,3 @@
-// lib/models/product_model.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Product {
@@ -13,6 +11,12 @@ class Product {
   final String donatorId;
   final String donatorName;
   final String status;
+  final String? receiverId;
+  final Timestamp? donatedAt;
+  
+  // Avaliação feita pelo RECEBEDOR sobre o item
+  final int? receiverRating;
+  final String? receiverComment;
 
   Product({
     required this.id,
@@ -25,6 +29,10 @@ class Product {
     required this.donatorId,
     required this.donatorName,
     required this.status,
+    this.receiverId,
+    this.donatedAt,
+    this.receiverRating,
+    this.receiverComment,
   });
 
   factory Product.fromFirestore(DocumentSnapshot doc) {
@@ -40,6 +48,10 @@ class Product {
       donatorId: data['donatorId'] ?? '',
       donatorName: data['donatorName'] ?? 'Anônimo',
       status: data['status'] ?? 'Available',
+      receiverId: data['receiverId'],
+      donatedAt: data['donatedAt'],
+      receiverRating: data['receiverRating'],
+      receiverComment: data['receiverComment'],
     );
   }
 
@@ -54,11 +66,13 @@ class Product {
       'donatorId': donatorId,
       'donatorName': donatorName,
       'status': status,
+      'receiverId': receiverId,
+      'donatedAt': donatedAt,
+      'receiverRating': receiverRating,
+      'receiverComment': receiverComment,
     };
   }
 
-  // 👇 ADICIONEI ESTE MÉTODO CORRIGIDO E COMPLETO 👇
-  /// Cria uma cópia do objeto Product, permitindo alterar alguns de seus valores.
   Product copyWith({
     String? id,
     String? title,
@@ -70,6 +84,10 @@ class Product {
     String? donatorId,
     String? donatorName,
     String? status,
+    String? receiverId,
+    Timestamp? donatedAt,
+    int? receiverRating,
+    String? receiverComment,
   }) {
     return Product(
       id: id ?? this.id,
@@ -82,6 +100,10 @@ class Product {
       donatorId: donatorId ?? this.donatorId,
       donatorName: donatorName ?? this.donatorName,
       status: status ?? this.status,
+      receiverId: receiverId ?? this.receiverId,
+      donatedAt: donatedAt ?? this.donatedAt,
+      receiverRating: receiverRating ?? this.receiverRating,
+      receiverComment: receiverComment ?? this.receiverComment,
     );
   }
 }

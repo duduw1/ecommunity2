@@ -1,7 +1,10 @@
-import 'package:ecommunity/screens/about_screen.dart'; // Import AboutScreen
+import 'package:ecommunity/screens/about_screen.dart';
+import 'package:ecommunity/screens/eco_calendar_screen.dart';
 import 'package:ecommunity/screens/marketplace/marketplace_screen.dart';
+import 'package:ecommunity/screens/points_exchange_screen.dart';
 import 'package:ecommunity/screens/profile/my_activity_screen.dart';
 import 'package:ecommunity/screens/profile/profile_screen.dart';
+import 'package:ecommunity/screens/recycling_map_screen.dart'; // Import Map
 import 'package:ecommunity/screens/social/chat_list_screen.dart';
 import 'package:ecommunity/screens/social/notifications_screen.dart';
 import 'package:ecommunity/screens/social/social_feed_screen.dart';
@@ -157,6 +160,43 @@ class HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
+              
+              // ITENS ADICIONAIS
+              ListTile(
+                leading: const Icon(Icons.card_giftcard, color: Colors.green),
+                title: const Text("Troca de Pontos"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const PointsExchangeScreen()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.calendar_today, color: Colors.blue),
+                title: const Text("Calendário Ecológico"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const EcoCalendarScreen()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.map_outlined, color: Colors.orange), // Novo item Mapa
+                title: const Text("Mapa de Reciclagem"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const RecyclingMapScreen()),
+                  );
+                },
+              ),
+              // FIM ITENS ADICIONAIS
+
               ListTile(
                 leading: const Icon(Icons.chat),
                 title: const Text("Mensagens"),
@@ -182,14 +222,6 @@ class HomeScreenState extends State<HomeScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.settings),
-                title: const Text('Configurações'),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-              // SOBRE O APP movido para cá (final da lista para logados)
-              ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('Sobre o App'),
                 onTap: () {
@@ -207,6 +239,29 @@ class HomeScreenState extends State<HomeScreen> {
                 onTap: _logout,
               ),
             ] else ...[
+              // VISITANTES TAMBÉM PODEM VER MAPA E CALENDÁRIO
+              ListTile(
+                leading: const Icon(Icons.calendar_today, color: Colors.blue),
+                title: const Text("Calendário Ecológico"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const EcoCalendarScreen()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.map_outlined, color: Colors.orange),
+                title: const Text("Mapa de Reciclagem"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const RecyclingMapScreen()),
+                  );
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.login),
                 title: const Text('Entrar'),
@@ -235,7 +290,6 @@ class HomeScreenState extends State<HomeScreen> {
                   Navigator.pop(context);
                 },
               ),
-              // SOBRE O APP já estava no final para não logados, mantido.
               ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('Sobre o App'),

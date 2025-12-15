@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+    
+    <!-- Permissões de Localização para o Mapa -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>O app precisa de acesso à sua localização para mostrar pontos de coleta próximos.</string>
 </dict>
 </plist>
