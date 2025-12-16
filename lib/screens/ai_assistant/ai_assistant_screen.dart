@@ -1,141 +1,135 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Import necessário para copiar
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+const String GEMINI_API_KEY = 'AIzaSyDhaZYVPXJ5UYkTdKaugS0GR_P4tzcxI3Q';
+const String MODEL_NAME = 'gemini-2.5-flash';
+
+// Função para chamar o Gemini API diretamente
+Future<String> getGeminiResponse(String prompt) async {
+  // O endpoint da API para gerar conteúdo
+  final url = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/$MODEL_NAME:generateContent?key=$GEMINI_API_KEY'
+  );
+
+  final body = jsonEncode({
+    "contents": [
+      {
+        "parts": [
+          {"text": prompt} // O texto da sua mensagem
+        ]
+      }
+    ],
+    // Opcional: Adicione configurações como 'temperature' ou 'maxOutputTokens'
+    // "config": { "temperature": 0.7 }
+  });
+
+  try {
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: body,
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+
+      // Extrai o texto da resposta do JSON
+      // O caminho é: response -> candidates[0] -> content -> parts[0] -> text
+      final String aiText = decoded['candidates'][0]['content']['parts'][0]['text'];
+      return aiText;
+    } else {
+      // Log de erro da API
+      print('Gemini API Error - Status: ${response.statusCode}');
+      print('Body: ${response.body}');
+      return 'Erro na API: Falha ao obter resposta (Status: ${response.statusCode})';
+    }
+  } catch (e) {
+    print('Erro de Rede/Parsing: $e');
+    return 'Erro de rede: Não foi possível conectar ao servidor.';
+  }
+}
 
 class AiAssistantScreen extends StatefulWidget {
   const AiAssistantScreen({super.key});
 
   @override
-  State<AiAssistantScreen> createState() => _AiAssistantScreenState();
+  State<AiAssistantScreen> createState() => _AiAssistantScreenState(); // criar o estado
 }
 
 class _AiAssistantScreenState extends State<AiAssistantScreen> {
-  final TextEditingController _controller = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  final List<_Message> _messages = [];
-  bool _isTyping = false;
+  final TextEditingController _controller = TextEditingController(); // controlador para o campo de texto
+  final List<_Message> _messages = []; // lista de mensagens
 
-  @override
-  void initState() {
-    super.initState();
-    // Mensagem inicial de boas-vindas
-    _messages.add(_Message(
-      text: "Olá! Eu sou o EcoMestre, seu assistente de reciclagem. Como posso te ajudar hoje?",
-      isUser: false
-    ));
-  }
-
-  Future<void> _sendMessage() async {
+  // Modifique seu método _sendMessage na classe _AiAssistantScreenState
+  void _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
+    final now = DateTime.now();
+
+    // 1. Adicionando UI (Mensagem do Usuário)
     setState(() {
-      _messages.add(_Message(text: text, isUser: true));
-      _isTyping = true;
+      _messages.add(_Message(id: now.millisecondsSinceEpoch, text: text, isUser: true, timestamp: now));
     });
     _controller.clear();
-    _scrollToBottom();
 
+    // 2. Chamando a API (Mensagem da AI)
     try {
-      final result = await FirebaseFunctions.instance
-          .httpsCallable('getGeminiResponse')
-          .call({'text': text});
+      // ⚠️ Adicione aqui um indicador de carregamento (loading state) na UI antes de chamar a API
+      final aiResponseText = await getGeminiResponse(text); // Chama sua nova função
 
-      final String responseText = result.data['text'] ?? "Desculpe, não entendi.";
-
-      if (mounted) {
-        setState(() {
-          _messages.add(_Message(text: responseText, isUser: false));
-          _isTyping = false;
-        });
-        _scrollToBottom();
-      }
+      // 3. Adicionando UI (Resposta da AI)
+      setState(() {
+        _messages.add(_Message(id: DateTime.now().millisecondsSinceEpoch, text: aiResponseText, isUser: false, timestamp: DateTime.now()));
+      });
+      // ⚠️ Remova o indicador de carregamento (loading state) na UI
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _messages.add(_Message(
-            text: "Erro ao conectar com a IA. Tente novamente mais tarde. ($e)",
-            isUser: false,
-            isError: true
-          ));
-          _isTyping = false;
-        });
-        _scrollToBottom();
-      }
+      // Tratar erro
+      print('Falha no processamento da mensagem: $e');
     }
-  }
-
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Eco Assistant')),
+      appBar: AppBar(
+        title: const Text(''),
+      ),
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length + (_isTyping ? 1 : 0),
+              itemCount: _messages.length,
               itemBuilder: (context, index) {
-                if (_isTyping && index == _messages.length) {
-                  return const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Text("EcoMestre está digitando...", style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
-                    ),
-                  );
-                }
-
                 final msg = _messages[index];
-                return Align(
-                  alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: GestureDetector(
-                    onLongPress: () {
-                      Clipboard.setData(ClipboardData(text: msg.text));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Mensagem copiada!', textAlign: TextAlign.center),
-                          duration: Duration(seconds: 1),
-                          behavior: SnackBarBehavior.floating,
-                          width: 200,
-                        ),
-                      );
-                    },
+                return GestureDetector(
+                  onTap: () => _editMessage(msg),
+                  onLongPress: () => _deleteMessage(msg),
+                  child: Align(
+                    alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
                     child: Container(
-                      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: msg.isError 
-                            ? Colors.red[100]
-                            : (msg.isUser
-                                ? Theme.of(context).primaryColor.withOpacity(0.9)
-                                : Colors.grey[200]),
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(12),
-                          topRight: const Radius.circular(12),
-                          bottomLeft: msg.isUser ? const Radius.circular(12) : Radius.zero,
-                          bottomRight: msg.isUser ? Radius.zero : const Radius.circular(12),
-                        ),
+                        color: msg.isUser
+                            ? Color.fromARGB(200,1,84,152)
+                            : Color.fromARGB(200,0,110,17),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
-                        msg.text,
-                        style: TextStyle(
-                          color: msg.isUser ? Colors.white : Colors.black87
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(msg.text),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${msg.timestamp.day.toString().padLeft(2, '0')}/'
+                                '${msg.timestamp.month.toString().padLeft(2, '0')} '
+                                '${msg.timestamp.hour.toString().padLeft(2, '0')}:'
+                                '${msg.timestamp.minute.toString().padLeft(2, '0')}',
+                            style: const TextStyle(fontSize: 10, color: Colors.white70),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -143,62 +137,78 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               },
             ),
           ),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              boxShadow: [
-                BoxShadow(
-                  offset: const Offset(0, -2),
-                  blurRadius: 4,
-                  color: Colors.black.withOpacity(0.05),
-                )
-              ]
-            ),
+          Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _controller,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: InputDecoration(
-                      hintText: 'Pergunte sobre reciclagem...',
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
-                      ),
+                    decoration: const InputDecoration(
+                      hintText: 'Pergunte ao AI Assistant...',
                     ),
                     onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _sendMessage,
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: _sendMessage,
                 ),
               ],
             ),
           ),
         ],
       ),
+
     );
+  }
+  void _editMessage(_Message msg) async {
+    final newText = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController(text: msg.text);
+        return AlertDialog(
+          title: const Text('Editar mensagem'),
+          content: TextField(controller: controller),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+            TextButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Salvar')),
+          ],
+        );
+      },
+    );
+
+    if (newText != null && newText.trim().isNotEmpty) {
+      setState(() {
+        final index = _messages.indexWhere((m) => m.id == msg.id);
+        if (index != -1) {
+          _messages[index] = _Message(
+            id: msg.id,
+            text: newText.trim(),
+            isUser: msg.isUser,
+            timestamp: msg.timestamp,
+          );
+        }
+      });
+    }
+  }
+
+  void _deleteMessage(_Message msg) {
+    setState(() {
+      _messages.removeWhere((m) => m.id == msg.id);
+    });
   }
 }
 
 class _Message {
+  final int id;
   final String text;
   final bool isUser;
-  final bool isError;
-
+  final DateTime timestamp;
   _Message({
+    required this.id,
     required this.text,
     required this.isUser,
-    this.isError = false,
-  });
+    required this.timestamp});
 }

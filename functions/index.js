@@ -1,46 +1,81 @@
-// 1. Importações
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { GoogleGenerativeAI } = require("@google/generative-ai"); 
-const logger = require("firebase-functions/logger");
-require('dotenv').config(); 
+/**
+ * * ARQUIVO: functions/index.js
+ * * Configuração moderna para Firebase Functions v6+ com Secrets
+ * */
 
-// 2. Configuração
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || ""); 
+const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {defineSecret} = require("firebase-functions/params");
+const admin = require("firebase-admin");
 
-// 3. Endpoint
+// Importa o SDK do Google Generative AI
+const {GoogleGenerativeAI} = require("@google/generative-ai");
+
+admin.initializeApp();
+
+// Define o segredo que armazenará a chave da API
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
+
+const SYSTEM_INSTRUCTION = `
+        You are an expert Ecological Consultant and Recycling Agent for the E-Community App.
+        Your goal is to provide accurate recycling tips and green advice.
+
+        RULES:
+        1. ONLY respond to questions related to recycling, waste disposal, sustainability, and green living.
+        2. Your answer must match the language of the user's question (Portuguese/English).
+        3. If a question is off-topic (e.g., recipes, math, coding), decline politely and redirect to recycling.
+    `;
+
+// Sintaxe para Firebase Functions v2
 exports.getGeminiResponse = onCall(
-    { cors: true, maxInstances: 10 }, 
+    {secrets: [geminiApiKey]}, // Configuração de segredos e opções vai aqui
     async (request) => {
-        const data = request.data;
-        const userPrompt = data.text || data.prompt; 
+      // Na v2, 'data' e 'auth' vêm dentro do objeto 'request'
+      // if (!request.auth) {
+      //   throw new HttpsError(
+      //       "unauthenticated",
+      //       "A função deve ser chamada por um usuário autenticado."
+      //   );
+      // }
 
-        if (!userPrompt) {
-            throw new HttpsError('invalid-argument', 'Prompt obrigatório.');
-        }
+      const userPrompt = request.data.prompt;
 
-        // Instruções embutidas no prompt para o modelo Pro (que não suporta systemInstruction nativo igual o 1.5)
-        const fullPrompt = `
-        Atue como um Consultor Ecológico experiente do App E-Community.
-        Responda apenas sobre reciclagem e sustentabilidade.
-        
-        Pergunta do usuário: ${userPrompt}
-        `;
+      if (!userPrompt) {
+        throw new HttpsError(
+            "invalid-argument",
+            "O prompt é obrigatório."
+        );
+      }
 
-        try {
-            if (!GEMINI_API_KEY) throw new Error("API Key ausente");
+      // Inicializa o cliente Gemini usando o valor do segredo
+      const apiKey = geminiApiKey.value();
+      if (!apiKey) {
+        throw new HttpsError(
+            "internal",
+            "Chave de API do Gemini não configurada."
+        );
+      }
 
-            // Usando gemini-pro (mais estável)
-            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      const genAI = new GoogleGenerativeAI(apiKey);
 
-            const result = await model.generateContent(fullPrompt);
-            const responseText = result.response.text();
+      try {
+        // Inicializa o modelo
+        const model = genAI.getGenerativeModel({
+          model: "gemini-1.5-flash",
+          systemInstruction: SYSTEM_INSTRUCTION,
+        });
 
-            return { text: responseText };
+        // Gera o conteúdo
+        const result = await model.generateContent(userPrompt);
+        const responseText = result.response.text();
 
-        } catch (error) {
-            logger.error("Gemini API Error:", error);
-            throw new HttpsError('internal', `DEBUG ERRO: ${error.message}`);
-        }
+        return {text: responseText};
+      } catch (error) {
+        console.error("Gemini API Error:", error);
+        throw new HttpsError(
+            "internal",
+            "Falha ao obter resposta do assistente de IA.",
+            error.message
+        );
+      }
     }
 );
