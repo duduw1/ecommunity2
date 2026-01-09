@@ -12,9 +12,9 @@
 .swiftpm/
 migrate_working_dir/
 
-# Secrets (Liberado temporariamente para apresentacao)
-# .env
-# functions/.env
+# Secrets
+.env
+functions/.env
 
 # IntelliJ related
 *.iml
@@ -36,6 +36,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+lib/firebase_options.dart
 
 # Symbolication related
 app.*.symbols
