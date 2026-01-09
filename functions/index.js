@@ -1,81 +1,64 @@
-/**
- * * ARQUIVO: functions/index.js
- * * Configuração moderna para Firebase Functions v6+ com Secrets
- * */
+// 1. Importações
+const functions = require("firebase-functions");
+const { GoogleGenerativeAI } = require("@google/generative-ai"); 
+require('dotenv').config(); 
 
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
-const {defineSecret} = require("firebase-functions/params");
-const admin = require("firebase-admin");
+// 2. Configuração
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || ""); 
 
-// Importa o SDK do Google Generative AI
-const {GoogleGenerativeAI} = require("@google/generative-ai");
+// 3. Endpoint
+exports.getGeminiResponse = functions.https.onCall(async (data, context) => {
+    // REMOVI O LOG QUE CAUSAVA O CRASH (JSON.stringify de objeto circular)
 
-admin.initializeApp();
+    // Tenta extrair o texto de várias formas possíveis (compatibilidade v1/v2/Raw)
+    let userPrompt = null;
+    
+    // Se for objeto direto com .text ou .prompt
+    if (data) {
+        userPrompt = data.text || data.prompt || data.message;
+        
+        // Se 'data' for na verdade um objeto Request da v2, o payload real está em .data
+        if (!userPrompt && data.data) {
+             const innerData = data.data;
+             userPrompt = innerData.text || innerData.prompt || innerData.message;
+        }
+    }
 
-// Define o segredo que armazenará a chave da API
-const geminiApiKey = defineSecret("GEMINI_API_KEY");
+    // Se chegou como string
+    if (!userPrompt && typeof data === 'string') {
+        userPrompt = data;
+    }
 
-const SYSTEM_INSTRUCTION = `
-        You are an expert Ecological Consultant and Recycling Agent for the E-Community App.
-        Your goal is to provide accurate recycling tips and green advice.
+    if (!userPrompt) {
+        // Log seguro (apenas chaves, sem stringify recursivo)
+        console.warn("Payload recebido sem prompt. Chaves:", data ? Object.keys(data) : "null");
+        throw new functions.https.HttpsError('invalid-argument', 'Prompt obrigatório. Verifique o envio.');
+    }
 
-        RULES:
-        1. ONLY respond to questions related to recycling, waste disposal, sustainability, and green living.
-        2. Your answer must match the language of the user's question (Portuguese/English).
-        3. If a question is off-topic (e.g., recipes, math, coding), decline politely and redirect to recycling.
+    const fullPrompt = `
+    You are EcoMestre, an expert Ecological Consultant for the E-Community App.
+    Keep your answers short, concise and friendly.
+    Answer in Portuguese.
+    User Question: ${userPrompt}
     `;
 
-// Sintaxe para Firebase Functions v2
-exports.getGeminiResponse = onCall(
-    {secrets: [geminiApiKey]}, // Configuração de segredos e opções vai aqui
-    async (request) => {
-      // Na v2, 'data' e 'auth' vêm dentro do objeto 'request'
-      // if (!request.auth) {
-      //   throw new HttpsError(
-      //       "unauthenticated",
-      //       "A função deve ser chamada por um usuário autenticado."
-      //   );
-      // }
+    try {
+        if (!GEMINI_API_KEY) throw new Error("API Key ausente.");
 
-      const userPrompt = request.data.prompt;
+        // Modelo Flash
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      if (!userPrompt) {
-        throw new HttpsError(
-            "invalid-argument",
-            "O prompt é obrigatório."
-        );
-      }
-
-      // Inicializa o cliente Gemini usando o valor do segredo
-      const apiKey = geminiApiKey.value();
-      if (!apiKey) {
-        throw new HttpsError(
-            "internal",
-            "Chave de API do Gemini não configurada."
-        );
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-
-      try {
-        // Inicializa o modelo
-        const model = genAI.getGenerativeModel({
-          model: "gemini-1.5-flash",
-          systemInstruction: SYSTEM_INSTRUCTION,
-        });
-
-        // Gera o conteúdo
-        const result = await model.generateContent(userPrompt);
+        const result = await model.generateContent(fullPrompt);
         const responseText = result.response.text();
 
-        return {text: responseText};
-      } catch (error) {
+        return { text: responseText };
+
+    } catch (error) {
         console.error("Gemini API Error:", error);
-        throw new HttpsError(
-            "internal",
-            "Falha ao obter resposta do assistente de IA.",
-            error.message
-        );
-      }
+        if (error.message.includes("503") || error.message.includes("overloaded")) {
+             throw new functions.https.HttpsError('unavailable', 'Servidor sobrecarregado. Tente em 1 minuto.');
+        }
+        throw new functions.https.HttpsError('internal', `Erro API: ${error.message}`);
     }
-);
+});

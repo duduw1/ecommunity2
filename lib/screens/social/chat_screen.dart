@@ -31,9 +31,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Detecta se o tema atual é escuro
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = Theme.of(context).primaryColor;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -61,17 +60,15 @@ class _ChatScreenState extends State<ChatScreen> {
                     final isMe = msg.senderId == currentUserId;
 
                     // Definição de cores adaptáveis ao tema
-                    Color bubbleColor;
-                    Color textColor;
+                    final Color bubbleColor;
+                    final Color textColor;
 
                     if (isMe) {
-                      // Mensagens do usuário: Azul (mais escuro no dark mode)
-                      bubbleColor = isDarkMode ? Colors.blue[900]! : Colors.blue[100]!;
-                      textColor = isDarkMode ? Colors.white : Colors.black87;
+                      bubbleColor = theme.colorScheme.primaryContainer;
+                      textColor = theme.colorScheme.onPrimaryContainer;
                     } else {
-                      // Mensagens do outro: Cinza (mais escuro no dark mode)
-                      bubbleColor = isDarkMode ? Colors.grey[800]! : Colors.grey[200]!;
-                      textColor = isDarkMode ? Colors.white : Colors.black87;
+                      bubbleColor = theme.colorScheme.surfaceVariant;
+                      textColor = theme.colorScheme.onSurfaceVariant;
                     }
 
                     return Align(
@@ -100,10 +97,10 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
+          // A área de input permanece a mesma, pois já usa cores do tema
           Container(
             padding: const EdgeInsets.all(8.0),
-            // Garante que o fundo da área de input seja opaco para não misturar com a lista
-            color: Theme.of(context).scaffoldBackgroundColor, 
+            color: Theme.of(context).scaffoldBackgroundColor,
             child: Row(
               children: [
                 Expanded(
@@ -111,34 +108,28 @@ class _ChatScreenState extends State<ChatScreen> {
                     controller: _messageController,
                     decoration: InputDecoration(
                       hintText: 'Digite sua mensagem...',
-                      // Estilo mais arredondado e limpo
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide(
-                          color: isDarkMode ? Colors.grey[700]! : Colors.grey[400]!,
-                        ),
+                        borderSide: BorderSide(color: theme.dividerColor),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide(
-                          color: isDarkMode ? Colors.grey[700]! : Colors.grey[400]!,
-                        ),
+                        borderSide: BorderSide(color: theme.dividerColor),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide(color: primaryColor),
+                        borderSide: BorderSide(color: theme.primaryColor),
                       ),
-                      fillColor: isDarkMode ? Colors.grey[900] : Colors.grey[100],
+                      fillColor: theme.inputDecorationTheme.fillColor,
                       filled: true,
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Botão com fundo colorido para garantir visibilidade
                 Container(
                   decoration: BoxDecoration(
-                    color: primaryColor,
+                    color: theme.primaryColor,
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(

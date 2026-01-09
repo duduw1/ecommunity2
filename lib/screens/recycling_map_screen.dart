@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geoflutterfire2/geoflutterfire2.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class RecyclingMapScreen extends StatefulWidget {
   const RecyclingMapScreen({super.key});
@@ -9,56 +13,128 @@ class RecyclingMapScreen extends StatefulWidget {
 }
 
 class _RecyclingMapScreenState extends State<RecyclingMapScreen> {
-  late GoogleMapController mapController;
+  GoogleMapController? mapController;
+  LatLng? _currentPosition;
 
-  // Posição inicial (Ex: Centro de São Paulo - ajuste conforme necessário)
-  final LatLng _center = const LatLng(-23.550520, -46.633308);
-
-  // Marcadores dos pontos de coleta
   final Set<Marker> _markers = {};
+  final _firestore = FirebaseFirestore.instance;
+  final _geo = GeoFlutterFire();
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadMarkers();
+    _determinePosition();
   }
 
-  void _loadMarkers() {
-    // Dados simulados de pontos de coleta
-    final List<Map<String, dynamic>> collectionPoints = [
-      {
-        'id': '1',
-        'name': 'Ecoponto Central',
-        'lat': -23.550520,
-        'lng': -46.633308,
-        'types': 'Vidro, Papel',
-      },
-      {
-        'id': '2',
-        'name': 'Cooperativa Recicla+',
-        'lat': -23.555520,
-        'lng': -46.638308,
-        'types': 'Eletrônicos',
-      },
-      {
-        'id': '3',
-        'name': 'Ponto Verde',
-        'lat': -23.545520,
-        'lng': -46.628308,
-        'types': 'Óleo, Pilhas',
-      },
-    ];
+  Future<void> _determinePosition() async {
+    // ... código de permissão
+    bool serviceEnabled;
+    LocationPermission permission;
 
-    for (var point in collectionPoints) {
-      _markers.add(
-        Marker(
-          markerId: MarkerId(point['id']),
-          position: LatLng(point['lat'], point['lng']),
-          infoWindow: InfoWindow(
-            title: point['name'],
-            snippet: point['types'],
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Serviço de localização desativado.')));
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permissão de localização negada.')));
+        setState(() => _isLoading = false);
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permissão negada permanentemente.')));
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final Position position = await Geolocator.getCurrentPosition();
+      setState(() {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+        _isLoading = false;
+      });
+      _animateToUserLocation();
+      _queryNearbyPoints();
+    } catch (e) {
+      setState(() => _isLoading = false);
+      print("Erro ao obter localização: $e");
+    }
+  }
+
+  void _queryNearbyPoints() {
+    if (_currentPosition == null) return;
+
+    GeoFirePoint center = _geo.point(latitude: _currentPosition!.latitude, longitude: _currentPosition!.longitude);
+    var collectionRef = _firestore.collection('collection_points');
+
+    double radius = 15;
+    String field = 'position';
+
+    Stream<List<DocumentSnapshot>> stream = _geo.collection(collectionRef: collectionRef).within(center: center, radius: radius, field: field);
+
+    stream.listen((List<DocumentSnapshot> documentList) {
+      _updateMarkers(documentList);
+    });
+  }
+
+  void _updateMarkers(List<DocumentSnapshot> documentList) {
+    final tempMarkers = <Marker>{};
+    for (var doc in documentList) {
+      try {
+        final data = doc.data() as Map<String, dynamic>;
+        final GeoPoint point = data['position']['geopoint'];
+
+        tempMarkers.add(
+          Marker(
+            markerId: MarkerId(doc.id),
+            position: LatLng(point.latitude, point.longitude),
+            infoWindow: InfoWindow(
+              title: data['name'],
+              snippet: 'Toque aqui para traçar rota', // Snippet atualizado
+              onTap: () => _launchMapsUrl(point.latitude, point.longitude), // Ação de toque
+            ),
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen), // Marcador verde
+        );
+      } catch (e) {
+        print("Erro ao processar o ponto ${doc.id}: $e");
+      }
+    }
+    setState(() {
+      _markers.clear();
+      _markers.addAll(tempMarkers);
+    });
+  }
+  
+  // Função para abrir o Google Maps
+  void _launchMapsUrl(double lat, double lng) async {
+    final Uri url = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      // Fallback para abrir no navegador se o app não estiver instalado
+      final Uri webUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+       if (await canLaunchUrl(webUrl)) {
+         await launchUrl(webUrl);
+       } else {
+          if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Não foi possível abrir o mapa.')));
+       }
+    }
+  }
+
+  void _animateToUserLocation() {
+     if (mapController != null && _currentPosition != null) {
+      mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: _currentPosition!, zoom: 14.0),
         ),
       );
     }
@@ -66,51 +142,27 @@ class _RecyclingMapScreenState extends State<RecyclingMapScreen> {
 
   void _onMapCreated(GoogleMapController controller) {
     mapController = controller;
+    _animateToUserLocation();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Pontos de Coleta")),
+      appBar: AppBar(title: const Text("Pontos de Coleta Próximos")),
       body: Stack(
         children: [
-          GoogleMap(
-            onMapCreated: _onMapCreated,
-            initialCameraPosition: CameraPosition(
-              target: _center,
-              zoom: 14.0,
-            ),
-            markers: _markers,
-            myLocationEnabled: true, // Requer permissão de localização no AndroidManifest
-            myLocationButtonEnabled: true,
-          ),
-          
-          // Legenda flutuante
-          Positioned(
-            top: 16,
-            left: 16,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.location_on, color: Colors.green),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "Toque nos marcadores verdes para ver detalhes do ponto de coleta.",
-                      style: TextStyle(fontSize: 14),
-                    ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : GoogleMap(
+                  onMapCreated: _onMapCreated,
+                  initialCameraPosition: CameraPosition(
+                    target: _currentPosition ?? const LatLng(-19.9213, -43.9386),
+                    zoom: 14.0,
                   ),
-                ],
-              ),
-            ),
-          ),
+                  markers: _markers,
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: true,
+                ),
         ],
       ),
     );

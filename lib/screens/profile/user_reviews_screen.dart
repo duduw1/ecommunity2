@@ -3,7 +3,7 @@ import 'package:ecommunity/models/user_model.dart';
 import 'package:ecommunity/repositories/product_repository.dart';
 import 'package:ecommunity/repositories/user_repository.dart';
 import 'package:ecommunity/screens/profile/public_profile_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart' as auth; // Alias adicionado
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 
 class UserReviewsScreen extends StatefulWidget {
@@ -21,11 +21,9 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
   final UserRepository _userRepo = UserRepository();
   
   bool _isLoading = true;
-  List<Product> _reviewsReceived = []; // Avaliações que o usuário recebeu (de doações que ele fez)
-  List<Product> _reviewsMade = [];     // Avaliações que o usuário fez (de itens que ele recebeu)
-  
-  Map<String, User> _usersMap = {}; // Cache de usuários (recebedores e doadores)
-
+  List<Product> _reviewsReceived = [];
+  List<Product> _reviewsMade = [];
+  Map<String, User> _usersMap = {};
   String? _currentUserId;
 
   @override
@@ -36,6 +34,9 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
   }
 
   Future<void> _loadAllReviews() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
     try {
       final results = await Future.wait([
         _productRepo.getDonationReviews(widget.userId),
@@ -44,32 +45,26 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
 
       final received = results[0];
       final made = results[1];
-
-      // Coletar IDs de usuários para buscar nomes/fotos
       final Set<String> userIdsToFetch = {};
-      
-      // Para reviews recebidos (eu doei), preciso do receiverId
       userIdsToFetch.addAll(received.map((p) => p.receiverId).whereType<String>());
-      
-      // Para reviews feitos (eu recebi), preciso do donatorId
       userIdsToFetch.addAll(made.map((p) => p.donatorId));
 
       final users = await _userRepo.getUsersByIds(userIdsToFetch.toList());
-      
-      final Map<String, User> usersMap = {
-        for (var user in users) user.id: user
-      };
+      final Map<String, User> usersMap = { for (var user in users) user.id: user };
 
       if (mounted) {
         setState(() {
           _reviewsReceived = received;
           _reviewsMade = made;
           _usersMap = usersMap;
-          _isLoading = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar avaliações: $e')));
+      }
+    } finally {
+       if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -87,9 +82,11 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
   void _showEditReviewDialog(Product review) {
     int rating = review.receiverRating ?? 5;
     final commentController = TextEditingController(text: review.receiverComment);
+    bool isSaving = false;
 
     showDialog(
       context: context,
+      barrierDismissible: !isSaving,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
@@ -107,18 +104,16 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
                         return IconButton(
                           icon: Icon(
                             index < rating ? Icons.star : Icons.star_border,
-                            color: Colors.amber,
-                            size: 32,
+                            color: Colors.amber, size: 32,
                           ),
-                          onPressed: () {
-                            setStateDialog(() => rating = index + 1);
-                          },
+                          onPressed: isSaving ? null : () => setStateDialog(() => rating = index + 1),
                         );
                       }),
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: commentController,
+                      enabled: !isSaving,
                       decoration: const InputDecoration(
                         labelText: 'Comentário',
                         border: OutlineInputBorder(),
@@ -129,11 +124,16 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context), 
+                  child: const Text('Cancelar')
+                ),
                 ElevatedButton(
-                  onPressed: () async {
-                    Navigator.pop(context);
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(80, 36)),
+                  onPressed: isSaving ? null : () async {
+                    setStateDialog(() => isSaving = true);
                     try {
+                      // A chamada ao servidor continua igual
                       await _productRepo.updateReview(
                         productId: review.id,
                         oldRating: review.receiverRating ?? 0,
@@ -142,16 +142,31 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
                       );
                       
                       if (mounted) {
+                        // ATUALIZAÇÃO INSTANTÂNEA DA UI
+                        final index = _reviewsMade.indexWhere((p) => p.id == review.id);
+                        if (index != -1) {
+                          final updatedReview = _reviewsMade[index].copyWith(
+                            receiverRating: rating,
+                            receiverComment: commentController.text,
+                          );
+                          setState(() {
+                            _reviewsMade[index] = updatedReview;
+                          });
+                        }
+
+                        Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Avaliação atualizada!')));
-                        _loadAllReviews(); // Recarrega lista
                       }
+
                     } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e')));
+                       if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
                       }
+                    } finally {
+                      if(mounted) setStateDialog(() => isSaving = false);
                     }
                   },
-                  child: const Text('Salvar'),
+                  child: isSaving ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Salvar'),
                 ),
               ],
             );
@@ -161,7 +176,7 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
     );
   }
 
-  @override
+   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
@@ -190,11 +205,7 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
   Widget _buildReviewList(List<Product> reviews, {required bool isReceived}) {
     if (reviews.isEmpty) {
       return Center(
-        child: Text(
-          isReceived 
-            ? "Nenhuma avaliação recebida." 
-            : "Nenhuma avaliação feita."
-        ),
+        child: Text(isReceived ? "Nenhuma avaliação recebida." : "Nenhuma avaliação feita."),
       );
     }
 
@@ -203,16 +214,11 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
       itemCount: reviews.length,
       itemBuilder: (context, index) {
         final review = reviews[index];
-        // Se isReceived (eu sou o doador), quero ver quem me avaliou (receiverId).
-        // Se !isReceived (eu sou o recebedor), quero ver quem eu avaliei (donatorId).
         final relatedUserId = isReceived ? review.receiverId : review.donatorId;
         final relatedUser = _usersMap[relatedUserId];
-        
         final rating = review.receiverRating ?? 0;
         final comment = review.receiverComment ?? "";
         final date = review.donatedAt?.toDate() ?? DateTime.now();
-
-        // Só posso editar se for ABA "Feitas" E eu for o dono do perfil que estou vendo
         final canEdit = !isReceived && widget.userId == _currentUserId;
 
         return Card(
@@ -296,8 +302,8 @@ class _UserReviewsScreenState extends State<UserReviewsScreen> {
                       Expanded(
                         child: Text(
                           isReceived 
-                            ? "Item doado: ${review.title}" // Recebi avaliação pq doei isso
-                            : "Item recebido: ${review.title}", // Fiz avaliação pq recebi isso
+                            ? "Item doado: ${review.title}" 
+                            : "Item recebido: ${review.title}",
                           style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)
                         )
                       ),
