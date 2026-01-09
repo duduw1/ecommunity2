@@ -7,9 +7,18 @@
 
 ---
 
-## 📖 Descrição Curta
+## 📖 Sobre o Projeto
 
 O **eCommunity** é um aplicativo móvel sustentável projetado para ajudar você a tomar decisões conscientes sobre o que fazer com objetos que não precisa mais. Utilizando inteligência artificial, o app oferece recomendações personalizadas sobre reciclagem, reutilização ou doação. Além disso, facilita a localização de pontos de coleta próximos e promove um marketplace consciente, onde cada item tem a chance de ganhar uma nova vida.
+
+---
+
+## 🎥 Demonstração em Vídeo
+
+| Demonstração Completa | Novas Funcionalidades |
+| :---: | :---: |
+| [![Assista à demonstração completa](https://img.youtube.com/vi/H80xrVS_AiQ/maxresdefault.jpg)](https://youtu.be/H80xrVS_AiQ) | [![Confira as novas funcionalidades](https://img.youtube.com/vi/4Bx15ZxeDTk/maxresdefault.jpg)](https://youtube.com/shorts/4Bx15ZxeDTk) |
+
 
 ---
 
@@ -19,6 +28,25 @@ O **eCommunity** é um aplicativo móvel sustentável projetado para ajudar voc�
 *   📍 **Centros de Reciclagem Próximos**: Encontre pontos de coleta e descarte de forma rápida e fácil, com apenas alguns cliques.
 *   💡 **Sugestões Criativas**: Descubra ideias inovadoras de reutilização para dar uma nova vida aos seus objetos.
 *   🎁 **Marketplace de Doações e Trocas**: Conecte-se com pessoas da sua comunidade que precisam dos seus itens ou que têm algo para trocar, evitando o desperdício.
+
+---
+
+## 🚀 Comece Agora
+
+A forma mais fácil de testar o aplicativo é baixando a última versão diretamente da nossa página de releases.
+
+**[➡️ Baixar a última versão do APK](https://github.com/duduw1/ecommunity2/releases)**
+
+
+---
+
+## 🛠️ Tecnologias Utilizadas
+
+*   **Framework**: [Flutter](https://flutter.dev/)
+*   **Linguagem**: [Dart](https://dart.dev/)
+*   **Backend & Banco de Dados**: [Firebase](https://firebase.google.com/) (Firestore, Authentication, Storage, Cloud Functions)
+*   **Mapas e Geolocalização**: [Google Maps Platform](https://cloud.google.com/maps-platform), [Geolocator](https://pub.dev/packages/geolocator), [Geocoding](https://pub.dev/packages/geocoding)
+*   **Seleção de Imagens**: [Image Picker](https://pub.dev/packages/image_picker)
 
 ---
 
@@ -32,20 +60,12 @@ O **eCommunity** é um aplicativo móvel sustentável projetado para ajudar voc�
 
 ---
 
-## 🚀 Conteúdos Planejados (Exemplo para uma Landing Page/Divulgação)
+## 🤝 Como Contribuir
 
-*   🖼️ **Banner Inicial**: Logo do eCommunity + Slogan + Chamada para ação (Ex: "Baixe agora e faça parte da mudança!").
-*   📱 **Demonstração do App**: Mockups ou capturas de tela destacando as três funcionalidades centrais (Reciclar, Reutilizar, Doar).
-*   📊 **Seção de Impacto**: Apresentar estatísticas e dados relevantes (Ex: “Cada item reaproveitado ajuda a reduzir X% de emissão de CO₂ e a preservar recursos naturais.”).
-*   ⬇️ **Call to Action (CTA)**: Botões visíveis para download (Ex: "Disponível na Play Store" / "Em breve na App Store").
-*   📞 **Rodapé**: Informações de contato, links para redes sociais e uma frase motivacional (Ex: “Pequenas atitudes, grandes mudanças.”).
+Contribuições são o que tornam a comunidade de código aberto um lugar incrível para aprender, inspirar e criar. Qualquer contribuição que você fizer será **muito apreciada**.
 
----
-
-## 🛠️ Tecnologias (Exemplo - Adicionar as tecnologias usadas no projeto)
-
-*   Framework: [Flutter](https://flutter.dev/)
-*   Linguagem: [Dart](https://dart.dev/)
-*   Backend: [Firebase](https://firebase.google.com/) (Firestore, Authentication, etc.)
-*   Mapas: [Google Maps Platform](https://cloud.google.com/maps-platform)
-*   _(Adicione outras tecnologias relevantes)_
+1.  Faça um **Fork** do projeto
+2.  Crie sua **Feature Branch** (`git checkout -b feature/AmazingFeature`)
+3.  Faça o **Commit** de suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+4.  Faça o **Push** para a Branch (`git push origin feature/AmazingFeature`)
+5.  Abra um **Pull Request**
