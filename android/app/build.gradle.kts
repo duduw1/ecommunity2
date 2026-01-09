@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
@@ -7,17 +8,17 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Função para carregar variáveis do arquivo .env
-fun loadEnv(): Properties {
-    val envFile = rootProject.file("../.env")
+// Função para carregar variáveis do arquivo local.properties
+fun loadLocalProperties(): Properties {
+    val localPropertiesFile = rootProject.file("local.properties")
     val properties = Properties()
-    if (envFile.exists()) {
-        properties.load(envFile.inputStream())
+    if (localPropertiesFile.exists()) {
+        properties.load(FileInputStream(localPropertiesFile))
     }
     return properties
 }
 
-val env = loadEnv()
+val localProperties = loadLocalProperties()
 
 android {
     namespace = "com.example.ecommunity"
@@ -40,8 +41,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         
-        // Injeta a chave do .env no Manifesto
-        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = env.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
+        // Injeta a chave do local.properties no Manifesto
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = localProperties.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
     }
 
     buildTypes {
